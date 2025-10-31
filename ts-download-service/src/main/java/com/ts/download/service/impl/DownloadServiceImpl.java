@@ -457,7 +457,7 @@ public class DownloadServiceImpl implements DownloadService {
         
         // 获取第一个和第二个任务类型对应的VO类
         Class<?> firstVoClass = getVoClassByTaskType(firstTaskType);
-        Class<?> secondVoClass = getVoClassByTaskType(secondTaskType);
+        Class<?> secondVoClass = needMerge ? getVoClassByTaskType(secondTaskType) : null;
         
         log.info("开始分批查询并匹配，目标数量：{}，批次大小：{}，总记录数：{}", targetLimit, batchSize, totalCount);
         
