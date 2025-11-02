@@ -1,0 +1,18 @@
+{
+  "name": "ts-merge",
+  "type": "desktop",
+  "description": "高性能文件处理工具",
+  "version": "1.0.0",
+  "author": {
+    "name": "Developer"
+  },
+  "frontend": {
+    "dir": "frontend",
+    "wailsjs": "frontend/wailsjs"
+  },
+  "build": {
+    "nsis": {
+      "variables": {}
+    }
+  }
+}
