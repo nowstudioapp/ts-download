@@ -2,6 +2,7 @@ package com.ts.download.service;
 
 import com.ts.download.domain.dto.DownloadReqDTO;
 import com.ts.download.domain.dto.MergeDownloadReqDTO;
+import com.ts.download.domain.dto.QueryTaskReqDTO;
 
 /**
  * 下载服务接口
@@ -33,4 +34,12 @@ public interface DownloadService {
      * @return 下载URL
      */
     String generateMergeDownloadUrl(MergeDownloadReqDTO reqDTO) throws Exception;
+
+    /**
+     * 查询任务记录数量（支持条件筛选）
+     * 
+     * @param reqDTO 查询任务请求参数
+     * @return 查询结果
+     */
+    Object queryTaskCount(QueryTaskReqDTO reqDTO) throws Exception;
 }

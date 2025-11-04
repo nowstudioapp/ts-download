@@ -2,6 +2,7 @@ package com.ts.download.controller;
 
 import com.ts.download.domain.dto.DownloadReqDTO;
 import com.ts.download.domain.dto.MergeDownloadReqDTO;
+import com.ts.download.domain.dto.QueryTaskReqDTO;
 import com.ts.download.domain.vo.R;
 import com.ts.download.service.DownloadService;
 import io.swagger.annotations.Api;
@@ -25,7 +26,7 @@ public class DownloadController {
     private DownloadService downloadService;
 
     @PostMapping("/generateDownloadUrl")
-    @ApiOperation("生成文件下载地址（上传到COS）")
+    @ApiOperation("生成文件下载地址（按时间从新到旧查询）")
     public R<String> generateDownloadUrl(@RequestBody DownloadReqDTO reqDTO) {
         log.info("=== 接收到下载请求 ===，downloadType={}, taskType={}, countryCode={}",
                 reqDTO.getDownloadType(), reqDTO.getTaskType(), reqDTO.getCountryCode());
@@ -55,11 +56,11 @@ public class DownloadController {
     }
 
     @PostMapping("/mergeDownload")
-    @ApiOperation("合并两个任务类型下载（根据phone匹配）")
+    @ApiOperation("合并两个任务类型下载（根据phone匹配，支持跳过指定数量实现分批下载）")
     public R<String> mergeDownload(@RequestBody MergeDownloadReqDTO reqDTO) {
-        log.info("=== 接收到合并下载请求 ===，firstTaskType={}, secondTaskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}",
+        log.info("=== 接收到合并下载请求 ===，firstTaskType={}, secondTaskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, skip={}",
                 reqDTO.getFirstTaskType(), reqDTO.getSecondTaskType(), reqDTO.getCountryCode(), 
-                reqDTO.getMinAge(), reqDTO.getMaxAge(), reqDTO.getSex(), reqDTO.getExcludeSkin());
+                reqDTO.getMinAge(), reqDTO.getMaxAge(), reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getSkip());
         
         try {
             String downloadUrl = downloadService.generateMergeDownloadUrl(reqDTO);
@@ -67,6 +68,22 @@ public class DownloadController {
         } catch (Exception e) {
             log.error("合并下载异常：{}", e.getMessage(), e);
             return R.fail("合并下载失败：" + e.getMessage());
+        }
+    }
+
+    @PostMapping("/queryTaskCount")
+    @ApiOperation("查询任务记录数量（支持条件筛选）")
+    public R<Object> queryTaskCount(@RequestBody QueryTaskReqDTO reqDTO) {
+        log.info("=== 接收到任务查询请求 ===，taskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, checkUserNameEmpty={}",
+                reqDTO.getTaskType(), reqDTO.getCountryCode(), reqDTO.getMinAge(), reqDTO.getMaxAge(), 
+                reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty());
+        
+        try {
+            Object result = downloadService.queryTaskCount(reqDTO);
+            return R.ok(result, "查询成功");
+        } catch (Exception e) {
+            log.error("查询任务记录数量异常：{}", e.getMessage(), e);
+            return R.fail("查询失败：" + e.getMessage());
         }
     }
 }

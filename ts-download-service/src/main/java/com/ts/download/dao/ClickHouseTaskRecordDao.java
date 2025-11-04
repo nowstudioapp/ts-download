@@ -178,6 +178,89 @@ public class ClickHouseTaskRecordDao {
     }
 
     /**
+     * 根据条件查询任务记录列表（支持skip跳过指定数量）
+     */
+    public List<TsWsTaskRecord> selectTaskRecordListWithConditionsAndSkip(String taskType, String countryCode, 
+                                                                           Integer minAge, Integer maxAge, 
+                                                                           Integer sex, Integer excludeSkin, 
+                                                                           Integer checkUserNameEmpty,
+                                                                           Integer skip, Integer limit) {
+        String tableName = getTableName(taskType, countryCode);
+        log.info("=== ClickHouse条件查询（支持skip） ===");
+        log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, skip: {}, limit: {}", 
+                taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, skip, limit);
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT * FROM ").append(tableName);
+        sql.append(" WHERE task_type = '").append(taskType).append("'");
+        
+        // 添加年龄条件
+        if (minAge != null && maxAge != null) {
+            sql.append(" AND age >= ").append(minAge).append(" AND age <= ").append(maxAge);
+        } else if (minAge != null) {
+            sql.append(" AND age >= ").append(minAge);
+        } else if (maxAge != null) {
+            sql.append(" AND age <= ").append(maxAge);
+        }
+        
+        // 添加性别条件（某些任务类型的sex字段存储的是中文）
+        if (sex != null) {
+            String sexValue = convertSexValue(taskType, sex);
+            sql.append(" AND sex = '").append(sexValue).append("'");
+        }
+        
+        // 添加排除肤色条件
+        if (excludeSkin != null) {
+            sql.append(" AND skin != '").append(excludeSkin).append("'");
+        }
+        
+        // 添加user_name是否为空的条件
+        if (checkUserNameEmpty != null) {
+            if (checkUserNameEmpty == 0) {
+                // 查询user_name为空的
+                sql.append(" AND (user_name = '' OR user_name IS NULL)");
+            } else if (checkUserNameEmpty == 1) {
+                // 查询user_name不为空的
+                sql.append(" AND user_name != '' AND user_name IS NOT NULL");
+            }
+        }
+        
+        // 按create_time降序排序，优先获取最新数据
+        sql.append(" ORDER BY create_time DESC");
+        
+        // 添加 LIMIT（ClickHouse语法：LIMIT offset, count）
+        if (skip != null && skip > 0) {
+            if (limit != null && limit > 0) {
+                sql.append(" LIMIT ").append(skip).append(", ").append(limit);
+            } else {
+                log.warn("未设置 limit，默认限制为 10000 条记录");
+                sql.append(" LIMIT ").append(skip).append(", 10000");
+            }
+        } else {
+            if (limit != null && limit > 0) {
+                sql.append(" LIMIT ").append(limit);
+            } else {
+                log.warn("未设置 limit，默认限制为 10000 条记录");
+                sql.append(" LIMIT 10000");
+            }
+        }
+
+        log.info("查询SQL: {}", sql.toString());
+
+        try {
+            List<TsWsTaskRecord> records = jdbcTemplate.query(
+                sql.toString(), 
+                (rs, rowNum) -> mapResultSetToRecord(rs)
+            );
+            log.info("查询完成，记录数: {}", records.size());
+            return records;
+        } catch (Exception e) {
+            log.error("ClickHouse查询失败", e);
+            throw new RuntimeException("ClickHouse查询失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * 根据条件查询任务记录列表（按create_time排序，使用lastCreateTime分页）
      */
     public List<TsWsTaskRecord> selectTaskRecordListWithConditionsByTime(String taskType, String countryCode, 
@@ -373,7 +456,7 @@ public class ClickHouseTaskRecordDao {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
-        sql.append(" ORDER BY phone, create_time DESC");
+        sql.append(" ORDER BY create_time DESC");
         
         // 添加 limit 限制（强烈建议设置，避免一次性加载过多数据到内存）
         if (limit != null && limit > 0) {

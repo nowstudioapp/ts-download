@@ -4,11 +4,14 @@ import com.ts.download.constant.TaskTypeConstants;
 import com.ts.download.dao.ClickHouseTaskRecordDao;
 import com.ts.download.domain.dto.DownloadReqDTO;
 import com.ts.download.domain.dto.MergeDownloadReqDTO;
+import com.ts.download.domain.dto.QueryTaskReqDTO;
 import com.ts.download.domain.entity.TsWsTaskRecord;
 import com.ts.download.domain.vo.QueryResultVO;
 import com.ts.download.excel.*;
 import com.ts.download.service.DownloadService;
 import com.ts.download.util.CosUtil;
+import com.ts.download.util.LocalFileUtil;
+import com.ts.download.config.LocalFileProperties;
 import com.ts.download.util.DateUtils;
 import com.ts.download.util.ExcelUtil;
 import com.ts.download.util.MockHttpServletResponse;
@@ -42,6 +45,12 @@ public class DownloadServiceImpl implements DownloadService {
 
     @Autowired
     private CosUtil cosUtil;
+
+    @Autowired
+    private LocalFileUtil localFileUtil;
+
+    @Autowired
+    private LocalFileProperties localFileProperties;
 
     @Override
     public String generateDownloadUrl(DownloadReqDTO reqDTO) throws Exception {
@@ -139,10 +148,16 @@ public class DownloadServiceImpl implements DownloadService {
             log.info("TXT文件生成耗时：{}ms, 文件大小：{}KB",
                     System.currentTimeMillis() - txtGenerateStart, tempFile.length() / 1024);
 
-            // 上传文件到COS
+            // 保存文件（本地存储或COS）
             long uploadStart = System.currentTimeMillis();
-            String downloadUrl = cosUtil.uploadToS3(tempFile, "download/" + dateDir);
-            log.info("TXT文件上传到COS耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            String downloadUrl;
+            if (localFileProperties.isEnabled()) {
+                downloadUrl = localFileUtil.saveToLocal(tempFile, "download/" + dateDir);
+                log.info("TXT文件保存到本地耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            } else {
+                downloadUrl = cosUtil.uploadToS3(tempFile, "download/" + dateDir);
+                log.info("TXT文件上传到COS耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            }
 
             return downloadUrl;
 
@@ -194,10 +209,16 @@ public class DownloadServiceImpl implements DownloadService {
             log.info("Excel导出耗时：{}ms, 导出记录数：{}, 文件大小：{}KB",
                     System.currentTimeMillis() - excelExportStart, taskRecordList.size(), tempFile.length() / 1024);
 
-            // 上传文件到COS
+            // 保存文件（本地存储或COS）
             long uploadStart = System.currentTimeMillis();
-            String downloadUrl = cosUtil.uploadToS3(tempFile, "download/" + dateDir);
-            log.info("Excel文件上传到COS耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            String downloadUrl;
+            if (localFileProperties.isEnabled()) {
+                downloadUrl = localFileUtil.saveToLocal(tempFile, "download/" + dateDir);
+                log.info("Excel文件保存到本地耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            } else {
+                downloadUrl = cosUtil.uploadToS3(tempFile, "download/" + dateDir);
+                log.info("Excel文件上传到COS耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            }
 
             return downloadUrl;
 
@@ -426,9 +447,10 @@ public class DownloadServiceImpl implements DownloadService {
         String secondTaskType = reqDTO.getSecondTaskType();
         String countryCode = reqDTO.getCountryCode();
         Integer limit = reqDTO.getLimit();
+        Integer skip = reqDTO.getSkip();
 
-        log.info("=== 开始生成合并下载URL ===，firstTaskType={}, secondTaskType={}, countryCode={}, limit={}",
-                firstTaskType, secondTaskType, countryCode, limit);
+        log.info("=== 开始生成合并下载URL ===，firstTaskType={}, secondTaskType={}, countryCode={}, limit={}, skip={}",
+                firstTaskType, secondTaskType, countryCode, limit, skip);
 
         // 转换性别参数（某些任务类型如sieveAvatar、tgEffective等，sex字段存储的是中文）
         Integer sexParam = convertSexParam(firstTaskType, reqDTO.getSex());
@@ -438,143 +460,101 @@ public class DownloadServiceImpl implements DownloadService {
         boolean needMerge = secondTaskType != null && !secondTaskType.trim().isEmpty();
         log.info("是否需要合并第二个任务类型：{}", needMerge);
 
-        // 1. 先统计符合条件的总记录数
-        Long totalCount = clickHouseTaskRecordDao.countRecordsWithConditions(
-                firstTaskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), 
-                sexParam, reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty());
-        log.info("第一个任务类型符合条件的总记录数：{}", totalCount);
+        // 准备查询参数
+        int targetLimit = (limit != null && limit > 0) ? limit : 10000; // 目标导出数量
+        int skipCount = (skip != null && skip > 0) ? skip : 0; // 跳过数量
 
-        if (totalCount == null || totalCount == 0) {
-            log.warn("未找到第一个任务类型记录，taskType={}, countryCode={}", firstTaskType, countryCode);
-            throw new RuntimeException("未找到符合条件的记录");
+        // 1. 统计符合条件的总记录数（分批下载时跳过统计以提高性能）
+        if (skipCount > 0) {
+            log.info("分批下载请求（skip={}），跳过总数统计以提高性能", skipCount);
+        } else {
+            Long totalCount = clickHouseTaskRecordDao.countRecordsWithConditions(
+                    firstTaskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), 
+                    sexParam, reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty());
+            log.info("第一个任务类型符合条件的总记录数：{}", totalCount);
+
+            if (totalCount == null || totalCount == 0) {
+                log.warn("未找到第一个任务类型记录，taskType={}, countryCode={}", firstTaskType, countryCode);
+                throw new RuntimeException("未找到符合条件的记录");
+            }
         }
 
-        // 2. 分批查询（如果需要合并则立即匹配第二个任务类型）
-        int targetLimit = (limit != null && limit > 0) ? limit : 10000; // 目标导出数量
-        int batchSize = 5000; // 每批查询5000条
-        String lastCreateTime = null; // 上一批最后一个create_time，用于分页
-        List<Map<String, Object>> mergedRecords = new ArrayList<>();
+        // 2. 查询准备
+        
+        log.info("开始查询数据，目标数量：{}，跳过数量：{}", targetLimit, skipCount);
+        
+        // 查询第一个任务类型的数据（自动分批查询）
+        List<TsWsTaskRecord> firstTaskRecords = queryDataWithBatch(
+                firstTaskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), 
+                sexParam, reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty(), skipCount, targetLimit);
+        
+        log.info("第一个任务类型查询完成，总共查询到：{}条", firstTaskRecords.size());
+        
+        if (firstTaskRecords == null || firstTaskRecords.isEmpty()) {
+            throw new RuntimeException("没有找到符合条件的记录");
+        }
         
         // 获取第一个和第二个任务类型对应的VO类
         Class<?> firstVoClass = getVoClassByTaskType(firstTaskType);
         Class<?> secondVoClass = needMerge ? getVoClassByTaskType(secondTaskType) : null;
         
-        log.info("开始分批查询并匹配，目标数量：{}，批次大小：{}，总记录数：{}", targetLimit, batchSize, totalCount);
+        List<Map<String, Object>> mergedRecords = new ArrayList<>();
         
-        int batchCount = 0;
-        int maxBatches = (int) Math.ceil((double) totalCount / batchSize) + 1; // 最大批次数，避免死循环
-        
-        while (mergedRecords.size() < targetLimit && batchCount < maxBatches) {
-            batchCount++;
-            long batchStart = System.currentTimeMillis();
+        if (needMerge) {
+            // 需要合并：查询第二个任务类型（使用phone列表）
+            List<String> phones = firstTaskRecords.stream()
+                    .map(TsWsTaskRecord::getPhone)
+                    .filter(phone -> phone != null && !phone.trim().isEmpty())
+                    .collect(java.util.stream.Collectors.toList());
             
-            // 查询第一个任务类型的一批数据
-            List<TsWsTaskRecord> firstBatchRecords = clickHouseTaskRecordDao.selectTaskRecordListWithConditionsByTime(
-                    firstTaskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), 
-                    sexParam, reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty(), lastCreateTime, batchSize);
+            log.info("准备查询第二个任务类型，phone数量：{}", phones.size());
             
-            log.info("第{}批第一个任务类型查询完成，耗时：{}ms, 查询到：{}条", 
-                    batchCount, System.currentTimeMillis() - batchStart, firstBatchRecords.size());
+            Map<String, TsWsTaskRecord> secondRecordMap = new LinkedHashMap<>();
             
-            if (firstBatchRecords == null || firstBatchRecords.isEmpty()) {
-                log.info("第{}批查询结果为空，停止查询", batchCount);
-                break;
-            }
-            
-            // 去重：保留每个phone的第一条记录
-            Map<String, TsWsTaskRecord> firstBatchMap = new LinkedHashMap<>();
-            for (TsWsTaskRecord record : firstBatchRecords) {
-                String phone = record.getPhone();
-                if (phone != null && !firstBatchMap.containsKey(phone)) {
-                    firstBatchMap.put(phone, record);
-                }
-            }
-            log.info("第{}批去重后：{}条", batchCount, firstBatchMap.size());
-            
-            int batchMergedCount = 0;
-            boolean reachedTarget = false;
-            
-            if (needMerge) {
-                // 需要合并：查询第二个任务类型（使用这批phone）
-                List<String> batchPhones = new ArrayList<>(firstBatchMap.keySet());
-                Map<String, TsWsTaskRecord> secondBatchMap = new LinkedHashMap<>();
+            // 分批查询第二个任务类型（每批1000个phone）
+            int batchSize = 1000;
+            for (int i = 0; i < phones.size(); i += batchSize) {
+                int end = Math.min(i + batchSize, phones.size());
+                List<String> subPhones = phones.subList(i, end);
                 
-                // 分批查询第二个任务类型（每批1000个phone）
-                int secondBatchSize = 1000;
-                for (int i = 0; i < batchPhones.size(); i += secondBatchSize) {
-                    int end = Math.min(i + secondBatchSize, batchPhones.size());
-                    List<String> subPhones = batchPhones.subList(i, end);
-                    
-                    List<TsWsTaskRecord> secondRecords = clickHouseTaskRecordDao.selectTaskRecordListByPhones(
-                            secondTaskType, countryCode, subPhones);
-                    
-                    for (TsWsTaskRecord record : secondRecords) {
-                        String phone = record.getPhone();
-                        if (phone != null && !secondBatchMap.containsKey(phone)) {
-                            secondBatchMap.put(phone, record);
-                        }
+                List<TsWsTaskRecord> secondRecords = clickHouseTaskRecordDao.selectTaskRecordListByPhones(
+                        secondTaskType, countryCode, subPhones);
+                
+                for (TsWsTaskRecord record : secondRecords) {
+                    String phone = record.getPhone();
+                    if (phone != null && !secondRecordMap.containsKey(phone)) {
+                        secondRecordMap.put(phone, record);
                     }
                 }
-                log.info("第{}批第二个任务类型匹配到：{}条", batchCount, secondBatchMap.size());
+            }
+            log.info("第二个任务类型匹配到：{}条", secondRecordMap.size());
+            
+            // 合并数据：只保留第二个任务类型也存在的记录
+            for (TsWsTaskRecord firstRecord : firstTaskRecords) {
+                String phone = firstRecord.getPhone();
+                TsWsTaskRecord secondRecord = secondRecordMap.get(phone);
                 
-                // 合并数据：只保留第二个任务类型也存在的记录
-                for (Map.Entry<String, TsWsTaskRecord> entry : firstBatchMap.entrySet()) {
-                    String phone = entry.getKey();
-                    TsWsTaskRecord firstRecord = entry.getValue();
-                    TsWsTaskRecord secondRecord = secondBatchMap.get(phone);
-                    
-                    if (secondRecord != null) {
-                        // 创建合并记录
-                        Map<String, Object> mergedRecord = new LinkedHashMap<>();
-                        addRecordFieldsByVo(mergedRecord, firstRecord, firstVoClass, "");
-                        addRecordFieldsByVo(mergedRecord, secondRecord, secondVoClass, "副-");
-                        mergedRecords.add(mergedRecord);
-                        batchMergedCount++;
-                        
-                        if (mergedRecords.size() >= targetLimit) {
-                            reachedTarget = true;
-                            break;
-                        }
-                    }
-                }
-            } else {
-                // 不需要合并：直接添加第一个任务类型的数据
-                for (Map.Entry<String, TsWsTaskRecord> entry : firstBatchMap.entrySet()) {
-                    TsWsTaskRecord firstRecord = entry.getValue();
-                    
-                    // 创建记录
+                if (secondRecord != null) {
+                    // 创建合并记录
                     Map<String, Object> mergedRecord = new LinkedHashMap<>();
                     addRecordFieldsByVo(mergedRecord, firstRecord, firstVoClass, "");
+                    addRecordFieldsByVo(mergedRecord, secondRecord, secondVoClass, "副-");
                     mergedRecords.add(mergedRecord);
-                    batchMergedCount++;
-                    
-                    if (mergedRecords.size() >= targetLimit) {
-                        reachedTarget = true;
-                        break;
-                    }
                 }
             }
-            log.info("第{}批处理成功：{}条，累计：{}/{}", batchCount, batchMergedCount, mergedRecords.size(), targetLimit);
-            
-            // 如果达到目标数量，停止查询
-            if (reachedTarget) {
-                log.info("已达到目标数量{}，停止查询", targetLimit);
-                break;
+            log.info("合并完成，最终记录数：{}", mergedRecords.size());
+        } else {
+            // 不需要合并：直接使用第一个任务类型的数据
+            for (TsWsTaskRecord firstRecord : firstTaskRecords) {
+                Map<String, Object> mergedRecord = new LinkedHashMap<>();
+                addRecordFieldsByVo(mergedRecord, firstRecord, firstVoClass, "");
+                mergedRecords.add(mergedRecord);
             }
-            
-            // 记录本批最后一个create_time，用于下一批查询
-            if (!firstBatchRecords.isEmpty()) {
-                Date lastTime = firstBatchRecords.get(firstBatchRecords.size() - 1).getCreateTime();
-                if (lastTime != null) {
-                    lastCreateTime = DateUtils.parseDateToStr(DateUtils.YYYY_MM_DD_HH_MM_SS, lastTime);
-                }
-            }
+            log.info("单任务类型处理完成，记录数：{}", mergedRecords.size());
         }
-        
-        log.info("分批查询完成，共{}批，最终合并记录数：{}", batchCount, mergedRecords.size());
 
         if (mergedRecords.isEmpty()) {
-            throw new RuntimeException("没有找到phone匹配的记录");
+            throw new RuntimeException("没有找到匹配的记录");
         }
 
         // 3. 生成Excel文件并上传
@@ -586,6 +566,74 @@ public class DownloadServiceImpl implements DownloadService {
                 System.currentTimeMillis() - totalStartTime, downloadUrl);
 
         return downloadUrl;
+    }
+
+    /**
+     * 分批查询数据（保护ClickHouse，避免大查询）
+     * @param taskType 任务类型
+     * @param countryCode 国家代码
+     * @param minAge 最小年龄
+     * @param maxAge 最大年龄
+     * @param sex 性别
+     * @param excludeSkin 排除肤色
+     * @param checkUserNameEmpty 检查用户名是否为空
+     * @param skip 跳过数量
+     * @param totalLimit 总共需要的数量
+     * @return 查询结果列表
+     */
+    private List<TsWsTaskRecord> queryDataWithBatch(String taskType, String countryCode, 
+                                                    Integer minAge, Integer maxAge, Integer sex, 
+                                                    Integer excludeSkin, Integer checkUserNameEmpty,
+                                                    Integer skip, Integer totalLimit) {
+        final int BATCH_SIZE = 10000; // 每批1万条
+        List<TsWsTaskRecord> allRecords = new ArrayList<>();
+        int currentSkip = skip;
+        int remainingLimit = totalLimit;
+        int batchNumber = 1;
+        
+        log.info("开始分批查询，总目标：{}条，跳过：{}条，批次大小：{}条", totalLimit, skip, BATCH_SIZE);
+        
+        while (remainingLimit > 0) {
+            int currentBatchSize = Math.min(BATCH_SIZE, remainingLimit);
+            
+            log.info("执行第{}批查询，跳过：{}条，查询：{}条", batchNumber, currentSkip, currentBatchSize);
+            long batchStart = System.currentTimeMillis();
+            
+            List<TsWsTaskRecord> batchRecords = clickHouseTaskRecordDao.selectTaskRecordListWithConditionsAndSkip(
+                    taskType, countryCode, minAge, maxAge, sex, excludeSkin, 
+                    checkUserNameEmpty, currentSkip, currentBatchSize);
+            
+            long batchTime = System.currentTimeMillis() - batchStart;
+            log.info("第{}批查询完成，耗时：{}ms，获得：{}条记录", batchNumber, batchTime, 
+                    batchRecords != null ? batchRecords.size() : 0);
+            
+            if (batchRecords == null || batchRecords.isEmpty()) {
+                log.info("第{}批查询结果为空，停止查询", batchNumber);
+                break;
+            }
+            
+            allRecords.addAll(batchRecords);
+            
+            // 如果这批数据少于预期，说明没有更多数据了
+            if (batchRecords.size() < currentBatchSize) {
+                log.info("第{}批数据不足（{}条 < {}条），已到数据末尾", batchNumber, batchRecords.size(), currentBatchSize);
+                break;
+            }
+            
+            // 准备下一批
+            currentSkip += currentBatchSize;
+            remainingLimit -= batchRecords.size();
+            batchNumber++;
+            
+            // 防止无限循环
+            if (batchNumber > 100) {
+                log.warn("分批查询超过100批，强制停止");
+                break;
+            }
+        }
+        
+        log.info("分批查询完成，共{}批，总计获得：{}条记录", batchNumber - 1, allRecords.size());
+        return allRecords;
     }
 
     /**
@@ -911,11 +959,20 @@ public class DownloadServiceImpl implements DownloadService {
             log.info("合并Excel导出耗时：{}ms, 导出记录数：{}, 文件大小：{}KB",
                     System.currentTimeMillis() - excelExportStart, dataList.size(), tempFile.length() / 1024);
 
-            // 上传文件到COS
+            // 保存文件（本地存储或COS）
             long uploadStart = System.currentTimeMillis();
-            String cosPath = "download";
-            String downloadUrl = cosUtil.uploadToS3(tempFile, cosPath);
-            log.info("COS上传耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            String downloadUrl;
+            if (localFileProperties.isEnabled()) {
+                // 生成日期目录
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+                String dateDir = dateFormat.format(new Date());
+                downloadUrl = localFileUtil.saveToLocal(tempFile, "download/" + dateDir);
+                log.info("合并Excel文件保存到本地耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            } else {
+                String cosPath = "download";
+                downloadUrl = cosUtil.uploadToS3(tempFile, cosPath);
+                log.info("COS上传耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            }
 
             return downloadUrl;
         } finally {
@@ -952,11 +1009,20 @@ public class DownloadServiceImpl implements DownloadService {
             log.info("合并Excel导出耗时：{}ms, 导出记录数：{}, 文件大小：{}KB",
                     System.currentTimeMillis() - excelExportStart, taskRecordList.size(), tempFile.length() / 1024);
 
-            // 上传文件到COS
+            // 保存文件（本地存储或COS）
             long uploadStart = System.currentTimeMillis();
-            String cosPath = "download";
-            String downloadUrl = cosUtil.uploadToS3(tempFile, cosPath);
-            log.info("COS上传耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            String downloadUrl;
+            if (localFileProperties.isEnabled()) {
+                // 生成日期目录
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+                String dateDir = dateFormat.format(new Date());
+                downloadUrl = localFileUtil.saveToLocal(tempFile, "download/" + dateDir);
+                log.info("合并Excel文件保存到本地耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            } else {
+                String cosPath = "download";
+                downloadUrl = cosUtil.uploadToS3(tempFile, cosPath);
+                log.info("COS上传耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            }
 
             return downloadUrl;
         } finally {
@@ -965,5 +1031,41 @@ public class DownloadServiceImpl implements DownloadService {
                 log.info("临时Excel文件清理：{}", deleted ? "成功" : "失败");
             }
         }
+    }
+
+    @Override
+    public Object queryTaskCount(QueryTaskReqDTO reqDTO) throws Exception {
+        long queryStartTime = System.currentTimeMillis();
+        String taskType = reqDTO.getTaskType();
+        String countryCode = reqDTO.getCountryCode();
+
+        log.info("=== 开始查询任务记录数量 ===，taskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, checkUserNameEmpty={}",
+                taskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty());
+
+        // 转换性别参数（某些任务类型如sieveAvatar、tgEffective等，sex字段存储的是中文）
+        Integer sexParam = convertSexParam(taskType, reqDTO.getSex());
+        log.info("性别参数转换：原始={}, 转换后={}", reqDTO.getSex(), sexParam);
+
+        // 查询符合条件的记录数
+        Long totalCount = clickHouseTaskRecordDao.countRecordsWithConditions(
+                taskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), 
+                sexParam, reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty());
+        
+        if (totalCount == null || totalCount == 0) {
+            log.warn("未找到符合条件的任务记录，taskType={}, countryCode={}", taskType, countryCode);
+            throw new RuntimeException("未找到符合条件的任务记录");
+        }
+
+        // 构建查询结果
+        QueryResultVO result = new QueryResultVO();
+        result.setTaskType(taskType);
+        result.setCountryCode(countryCode);
+        result.setTotalCount(totalCount);
+        result.setValidCount(totalCount);
+
+        log.info("=== 查询任务记录数量完成 ===，耗时：{}ms, 符合条件记录数：{}", 
+                System.currentTimeMillis() - queryStartTime, result.getTotalCount());
+
+        return result;
     }
 }
