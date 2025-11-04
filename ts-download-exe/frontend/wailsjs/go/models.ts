@@ -150,6 +150,44 @@ export namespace main {
 	        this.rowsAfterDedupe = source["rowsAfterDedupe"];
 	    }
 	}
+	export class TxtProcessConfig {
+	    mainFile: string;
+	    subFile: string;
+	    filterType: string;
+	    outputPath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TxtProcessConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mainFile = source["mainFile"];
+	        this.subFile = source["subFile"];
+	        this.filterType = source["filterType"];
+	        this.outputPath = source["outputPath"];
+	    }
+	}
+	export class TxtProcessResult {
+	    success: boolean;
+	    message: string;
+	    outputPath: string;
+	    rowsProcessed: number;
+	    rowsFiltered: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TxtProcessResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.message = source["message"];
+	        this.outputPath = source["outputPath"];
+	        this.rowsProcessed = source["rowsProcessed"];
+	        this.rowsFiltered = source["rowsFiltered"];
+	    }
+	}
 	export class UpdateConfig {
 	    mainFile: string;
 	    subFile: string;

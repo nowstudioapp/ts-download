@@ -41,11 +41,11 @@ type MergeConfig struct {
 
 // MergeResult 合并结果
 type MergeResult struct {
-	Success         bool   `json:"success"`
-	Message         string `json:"message"`
-	OutputPath      string `json:"outputPath"`
-	RowsProcessed   int    `json:"rowsProcessed"`
-	RowsAfterDedupe int    `json:"rowsAfterDedupe"`
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	OutputPath   string `json:"outputPath"`
+	RowsProcessed int    `json:"rowsProcessed"`
+	RowsAfterDedupe int  `json:"rowsAfterDedupe"`
 }
 
 // FilterConfig 过滤配置
@@ -86,10 +86,10 @@ type UpdateResult struct {
 
 // AgeProcessConfig 年龄处理配置
 type AgeProcessConfig struct {
-	ExcelFile  string `json:"excelFile"`
-	AgeColumn  string `json:"ageColumn"`
-	Threshold  int    `json:"threshold"`
-	Increment  int    `json:"increment"`
+	ExcelFile string  `json:"excelFile"`
+	AgeColumn string  `json:"ageColumn"`
+	Threshold int     `json:"threshold"`
+	Increment int     `json:"increment"`
 	OutputPath string `json:"outputPath"`
 }
 
@@ -104,8 +104,8 @@ type AgeProcessResult struct {
 
 // ActivityConfig 活跃数据生成配置
 type ActivityConfig struct {
-	ExcelFile  string `json:"excelFile"`
-	MaxDays    int    `json:"maxDays"`
+	ExcelFile string `json:"excelFile"`
+	MaxDays   int    `json:"maxDays"`
 	OutputPath string `json:"outputPath"`
 }
 
@@ -115,23 +115,6 @@ type ActivityResult struct {
 	Message       string `json:"message"`
 	OutputPath    string `json:"outputPath"`
 	RowsProcessed int    `json:"rowsProcessed"`
-}
-
-// TxtProcessConfig TXT文件处理配置
-type TxtProcessConfig struct {
-	MainFile   string `json:"mainFile"`
-	SubFile    string `json:"subFile"`
-	FilterType string `json:"filterType"` // "include" 或 "exclude"
-	OutputPath string `json:"outputPath"`
-}
-
-// TxtProcessResult TXT文件处理结果
-type TxtProcessResult struct {
-	Success       bool   `json:"success"`
-	Message       string `json:"message"`
-	OutputPath    string `json:"outputPath"`
-	RowsProcessed int    `json:"rowsProcessed"`
-	RowsFiltered  int    `json:"rowsFiltered"`
 }
 
 // MergeExcelFiles 合并 Excel 文件
@@ -190,10 +173,10 @@ func (a *App) MergeExcelFiles(filePaths []string, config MergeConfig) MergeResul
 		filePath = actualPath // 使用找到的完整路径
 
 		fmt.Printf("开始打开文件...\n")
-
+		
 		var rows [][]string
 		var err error
-
+		
 		// 根据文件类型选择读取方式
 		if isCSVFile(filePath) {
 			fmt.Printf("检测到CSV文件，使用CSV读取器\n")
@@ -228,7 +211,7 @@ func (a *App) MergeExcelFiles(filePaths []string, config MergeConfig) MergeResul
 			}
 
 			fmt.Printf("开始读取工作表: %s\n", sheets[0])
-
+			
 			rows, err = f.GetRows(sheets[0])
 			if err != nil {
 				fmt.Printf("读取工作表失败: %v\n", err)
@@ -244,7 +227,7 @@ func (a *App) MergeExcelFiles(filePaths []string, config MergeConfig) MergeResul
 				Message: fmt.Sprintf("不支持的文件格式: %s (仅支持 .xlsx, .xls, .csv)", filepath.Base(filePath)),
 			}
 		}
-
+		
 		// 显示文件行数信息
 		fmt.Printf("文件总行数: %d 行\n", len(rows))
 
@@ -274,15 +257,15 @@ func (a *App) MergeExcelFiles(filePaths []string, config MergeConfig) MergeResul
 			if totalDataRows > 100000 {
 				progressInterval = 10000 // 大文件每10000行显示一次
 			} else if totalDataRows > 10000 {
-				progressInterval = 5000 // 中等文件每5000行显示一次
+				progressInterval = 5000  // 中等文件每5000行显示一次
 			} else {
-				progressInterval = 1000 // 小文件每1000行显示一次
+				progressInterval = 1000  // 小文件每1000行显示一次
 			}
-
+			
 			if j%progressInterval == 0 {
 				fmt.Printf("已处理 %d/%d 行 (%.1f%%)\n", j, totalDataRows, float64(j)/float64(totalDataRows)*100)
 			}
-
+			
 			row := make(map[string]interface{})
 			for k, header := range headers {
 				if k < len(rows[j]) {
@@ -292,7 +275,7 @@ func (a *App) MergeExcelFiles(filePaths []string, config MergeConfig) MergeResul
 				}
 			}
 			allRows = append(allRows, row)
-
+			
 			// 调试：显示前几行数据
 			if j <= 3 {
 				fmt.Printf("第%d行数据: %v\n", j, row)
@@ -394,7 +377,7 @@ func (a *App) SelectSaveFile() (string, error) {
 	selection, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		DefaultDirectory: "",
 		DefaultFilename:  "merged.xlsx",
-		Title:            "选择输出文件位置",
+		Title:           "选择输出文件位置",
 		Filters: []runtime.FileFilter{
 			{
 				DisplayName: "Excel Files",
@@ -404,7 +387,7 @@ func (a *App) SelectSaveFile() (string, error) {
 		ShowHiddenFiles:      false,
 		CanCreateDirectories: true,
 	})
-
+	
 	return selection, err
 }
 
@@ -419,7 +402,7 @@ func (a *App) SelectExcelFiles() ([]string, error) {
 			},
 		},
 	})
-
+	
 	return selections, err
 }
 
@@ -434,7 +417,7 @@ func (a *App) SelectTxtFile() (string, error) {
 			},
 		},
 	})
-
+	
 	return selection, err
 }
 
@@ -623,6 +606,30 @@ func (a *App) FilterExcelFile(config FilterConfig) FilterResult {
 		RowsProcessed: rowsProcessed,
 		RowsFiltered:  rowsFiltered,
 	}
+}
+
+// readTxtFile 读取TXT文件内容
+func readTxtFile(filePath string) ([]string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" { // 跳过空行
+			lines = append(lines, line)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return lines, nil
 }
 
 // UpdateExcelFile 根据匹配字段更新Excel文件
@@ -867,7 +874,7 @@ func readExcelToMap(filePath, keyColumn string, valueColumns []string) (map[stri
 // findActualPath 查找文件的实际路径
 func findActualPath(filePath string) string {
 	fmt.Printf("查找文件: %s\n", filePath)
-
+	
 	// 如果是绝对路径且文件存在，直接返回
 	if filepath.IsAbs(filePath) {
 		if _, err := os.Stat(filePath); err == nil {
@@ -875,7 +882,7 @@ func findActualPath(filePath string) string {
 			return filePath
 		}
 	}
-
+	
 	// 如果只是文件名，尝试在常见目录查找
 	actualPath := filePath
 	if !filepath.IsAbs(filePath) {
@@ -887,7 +894,7 @@ func findActualPath(filePath string) string {
 			fmt.Printf("在下载目录找到文件: %s\n", actualPath)
 			return actualPath
 		}
-
+		
 		// 尝试在当前目录查找
 		currentDir, _ := os.Getwd()
 		currentPath := filepath.Join(currentDir, filePath)
@@ -896,7 +903,7 @@ func findActualPath(filePath string) string {
 			fmt.Printf("在当前目录找到文件: %s\n", actualPath)
 			return actualPath
 		}
-
+		
 		// 尝试在桌面查找
 		desktopPath := filepath.Join(userHome, "Desktop", filePath)
 		if _, err := os.Stat(desktopPath); err == nil {
@@ -905,7 +912,7 @@ func findActualPath(filePath string) string {
 			return actualPath
 		}
 	}
-
+	
 	// 如果都找不到，返回空字符串
 	fmt.Printf("未找到文件: %s\n", filePath)
 	return ""
@@ -1169,7 +1176,7 @@ func (a *App) GenerateActivityData(config ActivityConfig) ActivityResult {
 
 	// 获取当前时间
 	now := time.Now()
-
+	
 	// 初始化随机数生成器
 	rand.Seed(time.Now().UnixNano())
 
@@ -1192,18 +1199,18 @@ func (a *App) GenerateActivityData(config ActivityConfig) ActivityResult {
 	for i := 1; i < len(rows); i++ {
 		row := rows[i]
 		newRow := make([]string, len(newHeaders))
-
+		
 		// 复制原有数据
 		for j := 0; j < len(row) && j < len(headers); j++ {
 			newRow[j] = row[j]
 		}
-
+		
 		// 生成随机天数 (0 到 maxDays)
 		randomDays := 0
 		if config.MaxDays > 0 {
 			randomDays = rand.Intn(config.MaxDays + 1)
 		}
-
+		
 		// 生成活跃时间
 		// 如果天数是N，则时间在 (今天-N-1天) 到 (今天-N天) 之间
 		var activityTime time.Time
@@ -1216,20 +1223,20 @@ func (a *App) GenerateActivityData(config ActivityConfig) ActivityResult {
 			activityTime = minTime.Add(randomDuration)
 		} else {
 			// 天数为N，活跃时间在 (今天-N-1天) 到 (今天-N天) 之间
-			minTime := now.AddDate(0, 0, -(randomDays + 1))
+			minTime := now.AddDate(0, 0, -(randomDays+1))
 			maxTime := now.AddDate(0, 0, -randomDays)
 			timeDiff := maxTime.Sub(minTime)
 			randomDuration := time.Duration(rand.Int63n(int64(timeDiff)))
 			activityTime = minTime.Add(randomDuration)
 		}
-
+		
 		// 格式化时间为 "2025-09-19 20:47:59" 格式
 		activityTimeStr := activityTime.Format("2006-01-02 15:04:05")
-
+		
 		// 设置活跃时间和天数
 		newRow[len(headers)] = activityTimeStr
 		newRow[len(headers)+1] = strconv.Itoa(randomDays) // 这里先设置为字符串，但下面会特殊处理
-
+		
 		// 写入新行
 		for j, cellValue := range newRow {
 			cell := getCellName(j+1, i+1)
@@ -1257,173 +1264,4 @@ func (a *App) GenerateActivityData(config ActivityConfig) ActivityResult {
 		OutputPath:    config.OutputPath,
 		RowsProcessed: rowsProcessed,
 	}
-}
-
-// ProcessTxtFiles 处理TXT文件
-func (a *App) ProcessTxtFiles(config TxtProcessConfig) TxtProcessResult {
-	// 验证输入参数
-	if config.MainFile == "" || config.SubFile == "" {
-		return TxtProcessResult{
-			Success: false,
-			Message: "请选择主文件和副文件",
-		}
-	}
-
-	if config.OutputPath == "" {
-		return TxtProcessResult{
-			Success: false,
-			Message: "请指定输出路径",
-		}
-	}
-
-	// 读取主文件内容
-	mainLines, err := readTxtFile(config.MainFile)
-	if err != nil {
-		return TxtProcessResult{
-			Success: false,
-			Message: fmt.Sprintf("读取主文件失败: %v", err),
-		}
-	}
-
-	// 读取副文件内容
-	subLines, err := readTxtFile(config.SubFile)
-	if err != nil {
-		return TxtProcessResult{
-			Success: false,
-			Message: fmt.Sprintf("读取副文件失败: %v", err),
-		}
-	}
-
-	// 将副文件内容转换为map，用于快速查找
-	subMap := make(map[string]bool)
-	for _, line := range subLines {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			subMap[line] = true
-		}
-	}
-
-	// 处理主文件内容
-	var resultLines []string
-	rowsProcessed := 0
-	rowsFiltered := 0
-
-	for _, line := range mainLines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		rowsProcessed++
-		exists := subMap[line]
-
-		// 根据过滤类型决定是否保留该行
-		shouldKeep := false
-		if config.FilterType == "include" {
-			// 包含模式：保留在副文件中存在的行
-			shouldKeep = exists
-		} else if config.FilterType == "exclude" {
-			// 排除模式：保留在副文件中不存在的行
-			shouldKeep = !exists
-		}
-
-		if shouldKeep {
-			resultLines = append(resultLines, line)
-		} else {
-			rowsFiltered++
-		}
-	}
-
-	// 写入结果文件
-	err = writeTxtFile(config.OutputPath, resultLines)
-	if err != nil {
-		return TxtProcessResult{
-			Success: false,
-			Message: fmt.Sprintf("写入结果文件失败: %v", err),
-		}
-	}
-
-	filterTypeDesc := "包含"
-	if config.FilterType == "exclude" {
-		filterTypeDesc = "排除"
-	}
-
-	return TxtProcessResult{
-		Success:       true,
-		Message:       fmt.Sprintf("TXT文件处理完成！处理模式：%s，共处理 %d 行，过滤 %d 行，保留 %d 行", filterTypeDesc, rowsProcessed, rowsFiltered, len(resultLines)),
-		OutputPath:    config.OutputPath,
-		RowsProcessed: rowsProcessed,
-		RowsFiltered:  rowsFiltered,
-	}
-}
-
-// readTxtFile 读取TXT文件内容
-func readTxtFile(filePath string) ([]string, error) {
-	// 处理文件路径
-	actualPath := filePath
-	if !filepath.IsAbs(filePath) {
-		// 尝试在用户下载目录查找
-		userHome, _ := os.UserHomeDir()
-		downloadPath := filepath.Join(userHome, "Downloads", filePath)
-		if _, err := os.Stat(downloadPath); err == nil {
-			actualPath = downloadPath
-		} else {
-			// 尝试在当前目录查找
-			currentDir, _ := os.Getwd()
-			currentPath := filepath.Join(currentDir, filePath)
-			if _, err := os.Stat(currentPath); err == nil {
-				actualPath = currentPath
-			}
-		}
-	}
-
-	file, err := os.Open(actualPath)
-	if err != nil {
-		return nil, fmt.Errorf("无法打开文件 %s: %v", actualPath, err)
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("读取文件内容失败: %v", err)
-	}
-
-	fmt.Printf("成功读取文件 %s，共 %d 行\n", actualPath, len(lines))
-	return lines, nil
-}
-
-// writeTxtFile 写入TXT文件
-func writeTxtFile(filePath string, lines []string) error {
-	// 确保输出目录存在
-	dir := filepath.Dir(filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("创建输出目录失败: %v", err)
-	}
-
-	file, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("创建输出文件失败: %v", err)
-	}
-	defer file.Close()
-
-	writer := bufio.NewWriter(file)
-	for _, line := range lines {
-		_, err := writer.WriteString(line + "\n")
-		if err != nil {
-			return fmt.Errorf("写入文件内容失败: %v", err)
-		}
-	}
-
-	err = writer.Flush()
-	if err != nil {
-		return fmt.Errorf("刷新文件缓冲区失败: %v", err)
-	}
-
-	fmt.Printf("成功写入文件 %s，共 %d 行\n", filePath, len(lines))
-	return nil
 }

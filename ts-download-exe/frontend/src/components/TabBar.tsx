@@ -18,7 +18,8 @@ const tabs: Tab[] = [
   { id: 'file-update', label: '文件更新', icon: '🔄' },
   { id: 'file-filter', label: '文件过滤', icon: '🔍' },
   { id: 'file-duplicate', label: '年龄处理', icon: '🎂' },
-  { id: 'activity-generator', label: '活跃数据', icon: '📊' }
+  { id: 'activity-generator', label: '活跃数据', icon: '📊' },
+  { id: 'txt-processor', label: 'TXT处理', icon: '📝' }
 ];
 
 const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {

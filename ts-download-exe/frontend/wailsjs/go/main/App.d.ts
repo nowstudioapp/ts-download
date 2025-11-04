@@ -14,6 +14,8 @@ export function MergeExcelFiles(arg1:Array<string>,arg2:main.MergeConfig):Promis
 
 export function ProcessAgeColumn(arg1:main.AgeProcessConfig):Promise<main.AgeProcessResult>;
 
+export function ProcessTxtFiles(arg1:main.TxtProcessConfig):Promise<main.TxtProcessResult>;
+
 export function SelectExcelFiles():Promise<Array<string>>;
 
 export function SelectSaveFile():Promise<string>;

@@ -26,6 +26,10 @@ export function ProcessAgeColumn(arg1) {
   return window['go']['main']['App']['ProcessAgeColumn'](arg1);
 }
 
+export function ProcessTxtFiles(arg1) {
+  return window['go']['main']['App']['ProcessTxtFiles'](arg1);
+}
+
 export function SelectExcelFiles() {
   return window['go']['main']['App']['SelectExcelFiles']();
 }
