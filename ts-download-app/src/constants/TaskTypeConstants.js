@@ -339,8 +339,8 @@ export const TaskTypeOptions = [
 
 // 常用任务类型
 export const PopularTaskTypes = [
-  { label: '性别识别', value: 'gender' },
-  { label: 'WS有效验证', value: 'wsValid' },
+  { label: 'WS性别', value: 'gender' },
+  { label: 'TG性别', value: 'sieveAvatar' },
   { label: 'iOS有效验证', value: 'iosValid' },
   { label: 'RCS有效验证', value: 'rcsValid' },
   { label: 'TG有效筛选', value: 'tgEffective' },

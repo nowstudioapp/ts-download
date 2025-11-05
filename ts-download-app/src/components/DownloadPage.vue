@@ -254,12 +254,26 @@
                     filterable
                     clearable
                   >
-                    <el-option
-                      v-for="task in PopularTaskTypes"
-                      :key="task.value"
-                      :label="task.label"
-                      :value="task.value"
-                    />
+                    <el-option-group label="常用任务">
+                      <el-option
+                        v-for="task in PopularTaskTypes"
+                        :key="task.value"
+                        :label="task.label"
+                        :value="task.value"
+                      />
+                    </el-option-group>
+                    <el-option-group 
+                      v-for="category in taskCategories" 
+                      :key="category.name"
+                      :label="category.label"
+                    >
+                      <el-option
+                        v-for="task in category.tasks"
+                        :key="task.value"
+                        :label="task.label"
+                        :value="task.value"
+                      />
+                    </el-option-group>
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -271,12 +285,26 @@
                     filterable
                     clearable
                   >
-                    <el-option
-                      v-for="task in PopularTaskTypes"
-                      :key="task.value"
-                      :label="task.label"
-                      :value="task.value"
-                    />
+                    <el-option-group label="常用任务">
+                      <el-option
+                        v-for="task in PopularTaskTypes"
+                        :key="task.value"
+                        :label="task.label"
+                        :value="task.value"
+                      />
+                    </el-option-group>
+                    <el-option-group 
+                      v-for="category in taskCategories" 
+                      :key="category.name"
+                      :label="category.label"
+                    >
+                      <el-option
+                        v-for="task in category.tasks"
+                        :key="task.value"
+                        :label="task.label"
+                        :value="task.value"
+                      />
+                    </el-option-group>
                   </el-select>
                 </el-form-item>
               </el-col>
