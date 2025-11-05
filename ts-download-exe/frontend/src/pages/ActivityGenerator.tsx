@@ -197,8 +197,15 @@ const ActivityGenerator: React.FC = () => {
                 <input
                   type="number"
                   className="text-input number-input"
-                  value={maxDays || ''}
-                  onChange={(e) => setMaxDays(Number(e.target.value) || 0)}
+                  value={maxDays}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '') {
+                      setMaxDays(0);
+                    } else {
+                      setMaxDays(Number(value) || 0);
+                    }
+                  }}
                   min="0"
                   max="365"
                   placeholder="7"
