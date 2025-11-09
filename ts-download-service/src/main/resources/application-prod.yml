@@ -32,7 +32,7 @@ spring:
     type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: ru.yandex.clickhouse.ClickHouseDriver
     # 生产环境数据库连接（需要修改为生产环境地址）
-    url: jdbc:clickhouse://172.19.0.8:8123/ts?socket_timeout=600000&compress=true&decompress=true&use_server_time_zone=false&use_time_zone=Asia/Shanghai&rewriteBatchedStatements=true&max_insert_block_size=1000000&max_execution_time=0&max_memory_usage=10000000000
+    url: jdbc:clickhouse://172.19.0.8:8123/ts?socket_timeout=600000&compress=true&decompress=true&use_server_time_zone=false&use_time_zone=Asia/Shanghai&rewriteBatchedStatements=true&max_insert_block_size=1000000&max_execution_time=0&max_memory_usage=30000000000&max_memory_usage_for_user=30000000000&max_bytes_before_external_group_by=20000000000&max_bytes_before_external_sort=20000000000
     username: ts
     password: 6b52a53a13ab190c
     druid:

@@ -511,8 +511,8 @@ public class DownloadServiceImpl implements DownloadService {
             
             Map<String, TsWsTaskRecord> secondRecordMap = new LinkedHashMap<>();
             
-            // 分批查询第二个任务类型（每批1000个phone）
-            int batchSize = 1000;
+            // 分批查询第二个任务类型（每批5000个phone，适合ClickHouse大批量处理）
+            int batchSize = 5000;
             for (int i = 0; i < phones.size(); i += batchSize) {
                 int end = Math.min(i + batchSize, phones.size());
                 List<String> subPhones = phones.subList(i, end);
@@ -569,7 +569,7 @@ public class DownloadServiceImpl implements DownloadService {
     }
 
     /**
-     * 分批查询数据（保护ClickHouse，避免大查询）
+     * 分批查询数据（使用基于时间的分页，避免大OFFSET导致内存溢出）
      * @param taskType 任务类型
      * @param countryCode 国家代码
      * @param minAge 最小年龄
@@ -577,7 +577,7 @@ public class DownloadServiceImpl implements DownloadService {
      * @param sex 性别
      * @param excludeSkin 排除肤色
      * @param checkUserNameEmpty 检查用户名是否为空
-     * @param skip 跳过数量
+     * @param skip 跳过数量（仅第一批有效，后续批次使用时间分页）
      * @param totalLimit 总共需要的数量
      * @return 查询结果列表
      */
@@ -587,21 +587,45 @@ public class DownloadServiceImpl implements DownloadService {
                                                     Integer skip, Integer totalLimit) {
         final int BATCH_SIZE = 10000; // 每批1万条
         List<TsWsTaskRecord> allRecords = new ArrayList<>();
-        int currentSkip = skip;
         int remainingLimit = totalLimit;
         int batchNumber = 1;
+        String lastCreateTime = null; // 用于时间分页
         
-        log.info("开始分批查询，总目标：{}条，跳过：{}条，批次大小：{}条", totalLimit, skip, BATCH_SIZE);
+        log.info("开始分批查询（基于时间分页），总目标：{}条，跳过：{}条，批次大小：{}条", totalLimit, skip, BATCH_SIZE);
+        
+        // 如果需要跳过数据，先执行一次跳过查询
+        if (skip != null && skip > 0) {
+            log.info("执行跳过查询，跳过：{}条", skip);
+            long skipStart = System.currentTimeMillis();
+            
+            List<TsWsTaskRecord> skipRecords = clickHouseTaskRecordDao.selectTaskRecordListWithConditionsAndSkip(
+                    taskType, countryCode, minAge, maxAge, sex, excludeSkin, 
+                    checkUserNameEmpty, skip, 1); // 只取1条记录获取时间点
+            
+            long skipTime = System.currentTimeMillis() - skipStart;
+            log.info("跳过查询完成，耗时：{}ms", skipTime);
+            
+            if (skipRecords != null && !skipRecords.isEmpty()) {
+                // 获取跳过位置的时间点
+                TsWsTaskRecord lastSkipRecord = skipRecords.get(0);
+                if (lastSkipRecord.getCreateTime() != null) {
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                    lastCreateTime = sdf.format(lastSkipRecord.getCreateTime());
+                    log.info("获取到跳过位置的时间点：{}", lastCreateTime);
+                }
+            }
+        }
         
         while (remainingLimit > 0) {
             int currentBatchSize = Math.min(BATCH_SIZE, remainingLimit);
             
-            log.info("执行第{}批查询，跳过：{}条，查询：{}条", batchNumber, currentSkip, currentBatchSize);
+            log.info("执行第{}批查询，时间点：{}，查询：{}条", batchNumber, lastCreateTime, currentBatchSize);
             long batchStart = System.currentTimeMillis();
             
-            List<TsWsTaskRecord> batchRecords = clickHouseTaskRecordDao.selectTaskRecordListWithConditionsAndSkip(
+            // 使用基于时间的分页查询
+            List<TsWsTaskRecord> batchRecords = clickHouseTaskRecordDao.selectTaskRecordListWithConditionsByTime(
                     taskType, countryCode, minAge, maxAge, sex, excludeSkin, 
-                    checkUserNameEmpty, currentSkip, currentBatchSize);
+                    checkUserNameEmpty, lastCreateTime, currentBatchSize);
             
             long batchTime = System.currentTimeMillis() - batchStart;
             log.info("第{}批查询完成，耗时：{}ms，获得：{}条记录", batchNumber, batchTime, 
@@ -614,6 +638,13 @@ public class DownloadServiceImpl implements DownloadService {
             
             allRecords.addAll(batchRecords);
             
+            // 更新时间点为最后一条记录的时间
+            TsWsTaskRecord lastRecord = batchRecords.get(batchRecords.size() - 1);
+            if (lastRecord.getCreateTime() != null) {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                lastCreateTime = sdf.format(lastRecord.getCreateTime());
+            }
+            
             // 如果这批数据少于预期，说明没有更多数据了
             if (batchRecords.size() < currentBatchSize) {
                 log.info("第{}批数据不足（{}条 < {}条），已到数据末尾", batchNumber, batchRecords.size(), currentBatchSize);
@@ -621,7 +652,6 @@ public class DownloadServiceImpl implements DownloadService {
             }
             
             // 准备下一批
-            currentSkip += currentBatchSize;
             remainingLimit -= batchRecords.size();
             batchNumber++;
             

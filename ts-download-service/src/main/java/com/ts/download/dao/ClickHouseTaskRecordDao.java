@@ -63,7 +63,10 @@ public class ClickHouseTaskRecordDao {
         }
         
         record.setMultipleAvatars(rs.getString("multiple_avatars"));
+        
+        // 获取pic字段（头像）
         record.setPic(rs.getString("pic"));
+        
         record.setStatus(rs.getString("status"));
         record.setSkin(rs.getString("skin"));
         record.setHairColor(rs.getString("hair_color"));
@@ -261,7 +264,7 @@ public class ClickHouseTaskRecordDao {
     }
 
     /**
-     * 根据条件查询任务记录列表（按create_time排序，使用lastCreateTime分页）
+     * 根据条件查询任务记录列表（按create_time排序，使用lastCreateTime分页，排除pic字段减少内存使用）
      */
     public List<TsWsTaskRecord> selectTaskRecordListWithConditionsByTime(String taskType, String countryCode, 
                                                                            Integer minAge, Integer maxAge, 
@@ -269,12 +272,16 @@ public class ClickHouseTaskRecordDao {
                                                                            Integer checkUserNameEmpty,
                                                                            String lastCreateTime, Integer limit) {
         String tableName = getTableName(taskType, countryCode);
-        log.info("=== ClickHouse条件查询（按时间） ===");
+        log.info("=== ClickHouse条件查询（按时间，包含pic字段） ===");
         log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, lastCreateTime: {}, limit: {}", 
                 taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, lastCreateTime, limit);
 
         StringBuilder sql = new StringBuilder();
-        sql.append("SELECT * FROM ").append(tableName);
+        // 包含pic字段（合并下载需要头像列）
+        sql.append("SELECT phone, sex, age, active_day, business_number, multiple_avatars, ");
+        sql.append("status, skin, hair_color, uid, user_name, last_online_time, create_time, ");
+        sql.append("member, ethnicity, first_name, last_name, country_code, pic ");
+        sql.append("FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
         
         // 添加年龄条件
@@ -340,7 +347,7 @@ public class ClickHouseTaskRecordDao {
     }
 
     /**
-     * 根据phone列表查询任务记录
+     * 根据phone列表查询任务记录（排除pic字段以减少内存使用）
      */
     public List<TsWsTaskRecord> selectTaskRecordListByPhones(String taskType, String countryCode, List<String> phones) {
         if (phones == null || phones.isEmpty()) {
@@ -348,11 +355,15 @@ public class ClickHouseTaskRecordDao {
         }
         
         String tableName = getTableName(taskType, countryCode);
-        log.info("=== ClickHouse根据phone列表查询 ===");
+        log.info("=== ClickHouse根据phone列表查询（包含pic字段） ===");
         log.info("taskType: {}, countryCode: {}, 表名: {}, phone数量: {}", taskType, countryCode, tableName, phones.size());
 
         StringBuilder sql = new StringBuilder();
-        sql.append("SELECT * FROM ").append(tableName);
+        // 包含pic字段（合并下载需要头像列）
+        sql.append("SELECT phone, sex, age, active_day, business_number, multiple_avatars, ");
+        sql.append("status, skin, hair_color, uid, user_name, last_online_time, create_time, ");
+        sql.append("member, ethnicity, first_name, last_name, country_code, pic ");
+        sql.append("FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
         sql.append(" AND phone IN (");
         

@@ -6,6 +6,11 @@
       "sourceType": "com.ts.download.config.CosProperties"
     },
     {
+      "name": "local.file",
+      "type": "com.ts.download.config.LocalFileProperties",
+      "sourceType": "com.ts.download.config.LocalFileProperties"
+    },
+    {
       "name": "spring.datasource",
       "type": "javax.sql.DataSource",
       "sourceType": "com.ts.download.config.ClickHouseConfig",
@@ -42,6 +47,34 @@
       "type": "java.lang.String",
       "description": "访问密钥 (SecretKey)",
       "sourceType": "com.ts.download.config.CosProperties"
+    },
+    {
+      "name": "local.file.access-prefix",
+      "type": "java.lang.String",
+      "description": "文件访问路径前缀",
+      "sourceType": "com.ts.download.config.LocalFileProperties",
+      "defaultValue": "\/files"
+    },
+    {
+      "name": "local.file.base-path",
+      "type": "java.lang.String",
+      "description": "本地文件存储根目录",
+      "sourceType": "com.ts.download.config.LocalFileProperties",
+      "defaultValue": "D:\/ts-download-files"
+    },
+    {
+      "name": "local.file.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用本地存储（true=本地存储，false=COS存储）",
+      "sourceType": "com.ts.download.config.LocalFileProperties",
+      "defaultValue": true
+    },
+    {
+      "name": "local.file.server-domain",
+      "type": "java.lang.String",
+      "description": "服务器域名或IP",
+      "sourceType": "com.ts.download.config.LocalFileProperties",
+      "defaultValue": "http:\/\/localhost:8080"
     }
   ],
   "hints": []
