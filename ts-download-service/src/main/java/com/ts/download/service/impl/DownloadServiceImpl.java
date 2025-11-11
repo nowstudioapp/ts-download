@@ -494,6 +494,16 @@ public class DownloadServiceImpl implements DownloadService {
             throw new RuntimeException("没有找到符合条件的记录");
         }
         
+        // 处理数据：设置 lastOnlineTimeStr
+        firstTaskRecords.forEach(vo -> {
+            Date lastOnlineTime = vo.getLastOnlineTime();
+            if (lastOnlineTime != null) {
+                vo.setLastOnlineTimeStr(DateUtils.parseDateToStr(DateUtils.YYYY_MM_DD_HH_MM_SS, lastOnlineTime));
+            } else {
+                vo.setLastOnlineTimeStr(vo.getStatus());
+            }
+        });
+        
         // 获取第一个和第二个任务类型对应的VO类
         Class<?> firstVoClass = getVoClassByTaskType(firstTaskType);
         Class<?> secondVoClass = needMerge ? getVoClassByTaskType(secondTaskType) : null;
@@ -598,12 +608,14 @@ public class DownloadServiceImpl implements DownloadService {
             log.info("执行跳过查询，跳过：{}条", skip);
             long skipStart = System.currentTimeMillis();
             
+            // 获取第skip条记录的时间点作为分页起始点
+            int skipOffset = Math.max(0, skip - 1); // 避免负数
             List<TsWsTaskRecord> skipRecords = clickHouseTaskRecordDao.selectTaskRecordListWithConditionsAndSkip(
                     taskType, countryCode, minAge, maxAge, sex, excludeSkin, 
-                    checkUserNameEmpty, skip, 1); // 只取1条记录获取时间点
+                    checkUserNameEmpty, skipOffset, 1); // 取第skip条记录的时间点
             
             long skipTime = System.currentTimeMillis() - skipStart;
-            log.info("跳过查询完成，耗时：{}ms", skipTime);
+            log.info("跳过查询完成，耗时：{}ms，skipOffset：{}", skipTime, skipOffset);
             
             if (skipRecords != null && !skipRecords.isEmpty()) {
                 // 获取跳过位置的时间点

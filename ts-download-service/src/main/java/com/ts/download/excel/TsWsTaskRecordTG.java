@@ -26,11 +26,10 @@ public class TsWsTaskRecordTG {
     private String member;
 
     /** 最后上线时间 */
-    @Excel(name = "最后上线时间", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
     private Date lastOnlineTime;
 
     /** 最后上线时间 */
-    @Excel(name = "最后上线时间", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
+    @Excel(name = "最后上线时间", width = 30)
     private String lastOnlineTimeStr;
 
     @Excel(name = "有效天数",cellType = Excel.ColumnType.NUMERIC)
