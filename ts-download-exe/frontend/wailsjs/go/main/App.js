@@ -34,12 +34,24 @@ export function SelectExcelFiles() {
   return window['go']['main']['App']['SelectExcelFiles']();
 }
 
+export function SelectFolder() {
+  return window['go']['main']['App']['SelectFolder']();
+}
+
 export function SelectSaveFile() {
   return window['go']['main']['App']['SelectSaveFile']();
 }
 
+export function SelectSaveTxtFile() {
+  return window['go']['main']['App']['SelectSaveTxtFile']();
+}
+
 export function SelectTxtFile() {
   return window['go']['main']['App']['SelectTxtFile']();
+}
+
+export function SplitPhoneNumbers(arg1) {
+  return window['go']['main']['App']['SplitPhoneNumbers'](arg1);
 }
 
 export function UpdateExcelFile(arg1) {

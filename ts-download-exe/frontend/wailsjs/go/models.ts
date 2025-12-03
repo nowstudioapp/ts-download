@@ -150,6 +150,40 @@ export namespace main {
 	        this.rowsAfterDedupe = source["rowsAfterDedupe"];
 	    }
 	}
+	export class PhoneSplitConfig {
+	    inputFile: string;
+	    outputDir: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PhoneSplitConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.inputFile = source["inputFile"];
+	        this.outputDir = source["outputDir"];
+	    }
+	}
+	export class PhoneSplitResult {
+	    success: boolean;
+	    message: string;
+	    outputDir: string;
+	    totalNumbers: number;
+	    splitResults: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new PhoneSplitResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.message = source["message"];
+	        this.outputDir = source["outputDir"];
+	        this.totalNumbers = source["totalNumbers"];
+	        this.splitResults = source["splitResults"];
+	    }
+	}
 	export class TxtProcessConfig {
 	    mainFile: string;
 	    subFile: string;

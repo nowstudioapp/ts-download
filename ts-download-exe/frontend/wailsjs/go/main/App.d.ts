@@ -18,8 +18,14 @@ export function ProcessTxtFiles(arg1:main.TxtProcessConfig):Promise<main.TxtProc
 
 export function SelectExcelFiles():Promise<Array<string>>;
 
+export function SelectFolder():Promise<string>;
+
 export function SelectSaveFile():Promise<string>;
 
+export function SelectSaveTxtFile():Promise<string>;
+
 export function SelectTxtFile():Promise<string>;
+
+export function SplitPhoneNumbers(arg1:main.PhoneSplitConfig):Promise<main.PhoneSplitResult>;
 
 export function UpdateExcelFile(arg1:main.UpdateConfig):Promise<main.UpdateResult>;

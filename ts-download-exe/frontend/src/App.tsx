@@ -6,9 +6,10 @@ import FileUpdate from './pages/FileUpdate';
 import AgeProcessor from './pages/AgeProcessor';
 import ActivityGenerator from './pages/ActivityGenerator';
 import TxtProcessor from './pages/TxtProcessor';
+import PhoneSplitter from './pages/PhoneSplitter';
 import './App.css';
 
-export type TabType = 'file-merge' | 'file-update' | 'file-filter' | 'file-duplicate' | 'activity-generator' | 'txt-processor';
+export type TabType = 'file-merge' | 'file-update' | 'file-filter' | 'file-duplicate' | 'activity-generator' | 'txt-processor' | 'phone-splitter';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('file-merge');
@@ -27,6 +28,8 @@ const App: React.FC = () => {
         return <ActivityGenerator />;
       case 'txt-processor':
         return <TxtProcessor />;
+      case 'phone-splitter':
+        return <PhoneSplitter />;
       default:
         return <div className="placeholder">未知页面</div>;
     }

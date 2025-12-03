@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { SelectTxtFile, SelectSaveFile, ProcessTxtFiles } from '../../wailsjs/go/main/App';
+import { SelectTxtFile, SelectSaveTxtFile, ProcessTxtFiles } from '../../wailsjs/go/main/App';
 import './TxtProcessor.css';
 
 export interface TxtProcessConfig {
@@ -50,15 +50,10 @@ const TxtProcessor: React.FC = () => {
 
   const handleSelectOutput = async () => {
     try {
-      const path = await SelectSaveFile();
+      const path = await SelectSaveTxtFile();
       if (path && path.trim()) {
-        // 确保输出文件是 .txt 格式
-        let outputPath = path.trim();
-        if (!outputPath.toLowerCase().endsWith('.txt')) {
-          outputPath += '.txt';
-        }
-        setOutputPath(outputPath);
-        addLog(`✓ 设置输出路径: ${outputPath.split('\\').pop()}`);
+        setOutputPath(path.trim());
+        addLog(`✓ 设置输出路径: ${path.split('\\').pop()}`);
       }
     } catch (error) {
       addLog(`❌ 选择输出路径失败: ${error}`);

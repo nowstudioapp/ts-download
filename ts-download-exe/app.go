@@ -134,6 +134,21 @@ type TxtProcessResult struct {
 	RowsFiltered  int    `json:"rowsFiltered"`
 }
 
+// PhoneSplitConfig 手机号拆分配置
+type PhoneSplitConfig struct {
+	InputFile string `json:"inputFile"`
+	OutputDir string `json:"outputDir"`
+}
+
+// PhoneSplitResult 手机号拆分结果
+type PhoneSplitResult struct {
+	Success      bool           `json:"success"`
+	Message      string         `json:"message"`
+	OutputDir    string         `json:"outputDir"`
+	TotalNumbers int            `json:"totalNumbers"`
+	SplitResults map[string]int `json:"splitResults"`
+}
+
 // MergeExcelFiles 合并 Excel 文件
 func (a *App) MergeExcelFiles(filePaths []string, config MergeConfig) MergeResult {
 	if len(filePaths) == 0 {
@@ -408,6 +423,25 @@ func (a *App) SelectSaveFile() (string, error) {
 	return selection, err
 }
 
+// SelectSaveTxtFile 选择保存TXT文件位置
+func (a *App) SelectSaveTxtFile() (string, error) {
+	selection, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		DefaultDirectory: "",
+		DefaultFilename:  "result.txt",
+		Title:            "选择输出TXT文件位置",
+		Filters: []runtime.FileFilter{
+			{
+				DisplayName: "Text Files",
+				Pattern:     "*.txt",
+			},
+		},
+		ShowHiddenFiles:      false,
+		CanCreateDirectories: true,
+	})
+
+	return selection, err
+}
+
 // SelectExcelFiles 选择多个 Excel 文件
 func (a *App) SelectExcelFiles() ([]string, error) {
 	selections, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
@@ -433,6 +467,15 @@ func (a *App) SelectTxtFile() (string, error) {
 				Pattern:     "*.txt",
 			},
 		},
+	})
+
+	return selection, err
+}
+
+// SelectFolder 选择文件夹
+func (a *App) SelectFolder() (string, error) {
+	selection, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "选择输出文件夹",
 	})
 
 	return selection, err
@@ -511,8 +554,14 @@ func (a *App) FilterExcelFile(config FilterConfig) FilterResult {
 	// 将TXT内容转换为map以便快速查找
 	txtMap := make(map[string]bool)
 	for _, value := range txtValues {
-		txtMap[strings.TrimSpace(value)] = true
+		// 清理字符串：去除所有空白字符和不可见字符
+		cleanValue := cleanString(value)
+		if cleanValue != "" {
+			txtMap[cleanValue] = true
+		}
 	}
+
+	fmt.Printf("TXT文件加载完成，共 %d 条有效数据\n", len(txtMap))
 
 	// 打开Excel文件
 	f, err := excelize.OpenFile(excelPath)
@@ -572,6 +621,7 @@ func (a *App) FilterExcelFile(config FilterConfig) FilterResult {
 
 	rowsProcessed := len(rows) - 1 // 不包括表头
 	rowsFiltered := 0
+	matchedCount := 0 // 匹配到的数量
 
 	for i := 1; i < len(rows); i++ {
 		row := rows[i]
@@ -579,8 +629,19 @@ func (a *App) FilterExcelFile(config FilterConfig) FilterResult {
 			continue // 跳过列数不足的行
 		}
 
-		cellValue := strings.TrimSpace(row[columnIndex])
+		// 清理Excel单元格值：去除所有空白字符和不可见字符
+		originalValue := row[columnIndex]
+		cellValue := cleanString(originalValue)
 		exists := txtMap[cellValue]
+
+		// 调试：输出前5条匹配信息
+		if i <= 5 {
+			fmt.Printf("行%d: 原始值='%s', 清理后='%s', 是否匹配=%v\n", i, originalValue, cellValue, exists)
+		}
+
+		if exists {
+			matchedCount++
+		}
 
 		// 根据过滤类型决定是否保留该行
 		shouldKeep := false
@@ -595,6 +656,8 @@ func (a *App) FilterExcelFile(config FilterConfig) FilterResult {
 			rowsFiltered++
 		}
 	}
+
+	fmt.Printf("Excel处理完成: 总行数=%d, 匹配到=%d, 保留行数=%d\n", rowsProcessed, matchedCount, rowsFiltered)
 
 	// 创建新的Excel文件
 	newFile := excelize.NewFile()
@@ -1357,6 +1420,23 @@ func (a *App) ProcessTxtFiles(config TxtProcessConfig) TxtProcessResult {
 	}
 }
 
+// cleanString 清理字符串，去除所有空白字符和不可见字符
+func cleanString(s string) string {
+	// 先去除首尾空白
+	s = strings.TrimSpace(s)
+
+	// 去除所有空白字符（包括空格、制表符、换行符等）
+	var result strings.Builder
+	for _, r := range s {
+		// 只保留可见字符（ASCII 33-126 和其他非空白Unicode字符）
+		if r > 32 && !strings.ContainsRune(" \t\n\r\v\f\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000", r) {
+			result.WriteRune(r)
+		}
+	}
+
+	return result.String()
+}
+
 // readTxtFile 读取TXT文件内容
 func readTxtFile(filePath string) ([]string, error) {
 	// 处理文件路径
@@ -1385,8 +1465,18 @@ func readTxtFile(filePath string) ([]string, error) {
 
 	var lines []string
 	scanner := bufio.NewScanner(file)
+
+	// 设置更大的缓冲区大小，支持最大10MB的单行数据
+	const maxCapacity = 10 * 1024 * 1024 // 10MB
+	buf := make([]byte, maxCapacity)
+	scanner.Buffer(buf, maxCapacity)
+
 	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+		line := strings.TrimSpace(scanner.Text())
+		// 跳过空行
+		if line != "" {
+			lines = append(lines, line)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -1426,4 +1516,114 @@ func writeTxtFile(filePath string, lines []string) error {
 
 	fmt.Printf("成功写入文件 %s，共 %d 行\n", filePath, len(lines))
 	return nil
+}
+
+// SplitPhoneNumbers 根据手机号长度拆分TXT文件
+func (a *App) SplitPhoneNumbers(config PhoneSplitConfig) PhoneSplitResult {
+	// 验证输入参数
+	if config.InputFile == "" {
+		return PhoneSplitResult{
+			Success: false,
+			Message: "请选择输入文件",
+		}
+	}
+
+	if config.OutputDir == "" {
+		return PhoneSplitResult{
+			Success: false,
+			Message: "请指定输出目录",
+		}
+	}
+
+	// 读取输入文件内容
+	lines, err := readTxtFile(config.InputFile)
+	if err != nil {
+		return PhoneSplitResult{
+			Success: false,
+			Message: fmt.Sprintf("读取输入文件失败: %v", err),
+		}
+	}
+
+	if len(lines) == 0 {
+		return PhoneSplitResult{
+			Success: false,
+			Message: "输入文件为空",
+		}
+	}
+
+	// 创建输出目录
+	if err := os.MkdirAll(config.OutputDir, 0755); err != nil {
+		return PhoneSplitResult{
+			Success: false,
+			Message: fmt.Sprintf("创建输出目录失败: %v", err),
+		}
+	}
+
+	// 按长度分组手机号
+	phoneGroups := make(map[int][]string)
+	totalNumbers := 0
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// 只保留数字字符
+		phoneNumber := ""
+		for _, char := range line {
+			if char >= '0' && char <= '9' {
+				phoneNumber += string(char)
+			}
+		}
+
+		// 跳过空的或无效的手机号
+		if phoneNumber == "" {
+			continue
+		}
+
+		length := len(phoneNumber)
+		phoneGroups[length] = append(phoneGroups[length], phoneNumber)
+		totalNumbers++
+	}
+
+	if totalNumbers == 0 {
+		return PhoneSplitResult{
+			Success: false,
+			Message: "没有找到有效的手机号",
+		}
+	}
+
+	// 为每个长度创建对应的文件
+	splitResults := make(map[string]int)
+
+	for length, phones := range phoneGroups {
+		if len(phones) == 0 {
+			continue
+		}
+
+		// 创建输出文件名
+		fileName := fmt.Sprintf("%d位手机号.txt", length)
+		filePath := filepath.Join(config.OutputDir, fileName)
+
+		// 写入文件
+		err := writeTxtFile(filePath, phones)
+		if err != nil {
+			return PhoneSplitResult{
+				Success: false,
+				Message: fmt.Sprintf("写入文件 %s 失败: %v", fileName, err),
+			}
+		}
+
+		splitResults[fmt.Sprintf("%d", length)] = len(phones)
+		fmt.Printf("创建文件: %s，包含 %d 个手机号\n", fileName, len(phones))
+	}
+
+	return PhoneSplitResult{
+		Success:      true,
+		Message:      "手机号拆分完成！",
+		OutputDir:    config.OutputDir,
+		TotalNumbers: totalNumbers,
+		SplitResults: splitResults,
+	}
 }
