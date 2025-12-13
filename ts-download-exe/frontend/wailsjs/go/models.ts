@@ -262,6 +262,44 @@ export namespace main {
 	        this.rowsUpdated = source["rowsUpdated"];
 	    }
 	}
+	export class TxtInterleaveConfig {
+	    mainFile: string;
+	    subFile: string;
+	    outputPath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TxtInterleaveConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mainFile = source["mainFile"];
+	        this.subFile = source["subFile"];
+	        this.outputPath = source["outputPath"];
+	    }
+	}
+	export class TxtInterleaveResult {
+	    success: boolean;
+	    message: string;
+	    outputPath: string;
+	    mainLines: number;
+	    subLines: number;
+	    totalLines: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TxtInterleaveResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.message = source["message"];
+	        this.outputPath = source["outputPath"];
+	        this.mainLines = source["mainLines"];
+	        this.subLines = source["subLines"];
+	        this.totalLines = source["totalLines"];
+	    }
+	}
 
 }
 

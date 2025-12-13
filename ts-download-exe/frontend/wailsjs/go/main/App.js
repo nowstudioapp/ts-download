@@ -57,3 +57,7 @@ export function SplitPhoneNumbers(arg1) {
 export function UpdateExcelFile(arg1) {
   return window['go']['main']['App']['UpdateExcelFile'](arg1);
 }
+
+export function InterleaveTxtFiles(arg1) {
+  return window['go']['main']['App']['InterleaveTxtFiles'](arg1);
+}

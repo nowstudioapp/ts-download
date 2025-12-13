@@ -29,3 +29,5 @@ export function SelectTxtFile():Promise<string>;
 export function SplitPhoneNumbers(arg1:main.PhoneSplitConfig):Promise<main.PhoneSplitResult>;
 
 export function UpdateExcelFile(arg1:main.UpdateConfig):Promise<main.UpdateResult>;
+
+export function InterleaveTxtFiles(arg1:main.TxtInterleaveConfig):Promise<main.TxtInterleaveResult>;
