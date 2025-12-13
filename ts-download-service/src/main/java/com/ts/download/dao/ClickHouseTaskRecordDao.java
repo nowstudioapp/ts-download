@@ -497,6 +497,86 @@ public class ClickHouseTaskRecordDao {
     }
 
     /**
+     * 流式查询手机号（只查询phone字段，用于TXT导出，避免内存溢出）
+     * @param taskType 任务类型
+     * @param countryCode 国家代码
+     * @param minAge 最小年龄
+     * @param maxAge 最大年龄
+     * @param sex 性别
+     * @param excludeSkin 排除肤色
+     * @param checkUserNameEmpty 检查用户名是否为空
+     * @param callback 每批数据的回调处理
+     * @param batchSize 每批数量
+     */
+    public void streamPhoneNumbers(String taskType, String countryCode,
+                                   Integer minAge, Integer maxAge,
+                                   Integer sex, Integer excludeSkin,
+                                   Integer checkUserNameEmpty,
+                                   java.util.function.Consumer<List<String>> callback,
+                                   int batchSize) {
+        String tableName = getTableName(taskType, countryCode);
+        log.info("=== ClickHouse流式查询手机号 ===");
+        log.info("taskType: {}, countryCode: {}, 表名: {}", taskType, countryCode, tableName);
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT DISTINCT phone FROM ").append(tableName);
+        sql.append(" WHERE task_type = '").append(taskType).append("'");
+        
+        // 添加年龄条件
+        if (minAge != null && maxAge != null) {
+            sql.append(" AND age >= ").append(minAge).append(" AND age <= ").append(maxAge);
+        } else if (minAge != null) {
+            sql.append(" AND age >= ").append(minAge);
+        } else if (maxAge != null) {
+            sql.append(" AND age <= ").append(maxAge);
+        }
+        
+        // 添加性别条件
+        if (sex != null) {
+            String sexValue = convertSexValue(taskType, sex);
+            sql.append(" AND sex = '").append(sexValue).append("'");
+        }
+        
+        // 添加排除肤色条件
+        if (excludeSkin != null) {
+            sql.append(" AND skin != '").append(excludeSkin).append("'");
+        }
+        
+        // 添加user_name是否为空的条件
+        if (checkUserNameEmpty != null) {
+            if (checkUserNameEmpty == 0) {
+                sql.append(" AND (user_name = '' OR user_name IS NULL)");
+            } else if (checkUserNameEmpty == 1) {
+                sql.append(" AND user_name != '' AND user_name IS NOT NULL");
+            }
+        }
+        
+        sql.append(" ORDER BY phone");
+
+        log.info("流式查询SQL: {}", sql.toString());
+
+        try {
+            // 使用流式处理，每批处理 batchSize 条
+            List<String> batch = new ArrayList<>();
+            jdbcTemplate.query(sql.toString(), (rs) -> {
+                batch.add(rs.getString("phone"));
+                if (batch.size() >= batchSize) {
+                    callback.accept(new ArrayList<>(batch));
+                    batch.clear();
+                }
+            });
+            // 处理最后一批
+            if (!batch.isEmpty()) {
+                callback.accept(batch);
+            }
+            log.info("流式查询完成");
+        } catch (Exception e) {
+            log.error("ClickHouse流式查询失败", e);
+            throw new RuntimeException("ClickHouse流式查询失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * 转换性别值（某些任务类型的sex字段存储的是中文）
      * @param taskType 任务类型
      * @param sex 性别参数（0=女, 1=男）

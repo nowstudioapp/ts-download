@@ -247,70 +247,13 @@
           <el-form :model="mergeForm" label-width="120px" class="form-container">
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="第一任务类型" required>
-                  <el-select 
-                    v-model="mergeForm.firstTaskType" 
-                    placeholder="请选择第一任务类型"
-                    filterable
-                    clearable
-                  >
-                    <el-option-group label="常用任务">
-                      <el-option
-                        v-for="task in PopularTaskTypes"
-                        :key="task.value"
-                        :label="task.label"
-                        :value="task.value"
-                      />
-                    </el-option-group>
-                    <el-option-group 
-                      v-for="category in taskCategories" 
-                      :key="category.name"
-                      :label="category.label"
-                    >
-                      <el-option
-                        v-for="task in category.tasks"
-                        :key="task.value"
-                        :label="task.label"
-                        :value="task.value"
-                      />
-                    </el-option-group>
+                <el-form-item label="导出类型" required>
+                  <el-select v-model="mergeForm.downloadType" placeholder="请选择导出类型">
+                    <el-option label="Excel文件" value="excel" />
+                    <el-option label="TXT文件（只含手机号）" value="txt" />
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
-                <el-form-item label="第二任务类型">
-                  <el-select 
-                    v-model="mergeForm.secondTaskType" 
-                    placeholder="可选，不选则只使用第一任务类型"
-                    filterable
-                    clearable
-                  >
-                    <el-option-group label="常用任务">
-                      <el-option
-                        v-for="task in PopularTaskTypes"
-                        :key="task.value"
-                        :label="task.label"
-                        :value="task.value"
-                      />
-                    </el-option-group>
-                    <el-option-group 
-                      v-for="category in taskCategories" 
-                      :key="category.name"
-                      :label="category.label"
-                    >
-                      <el-option
-                        v-for="task in category.tasks"
-                        :key="task.value"
-                        :label="task.label"
-                        :value="task.value"
-                      />
-                    </el-option-group>
-                  </el-select>
-                </el-form-item>
-              </el-col>
-            </el-row>
-            
-            <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="国家代码" required>
                   <el-select 
@@ -338,15 +281,52 @@
                   </el-select>
                 </el-form-item>
               </el-col>
+            </el-row>
+            
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="任务类型">
+                  <el-select 
+                    v-model="mergeForm.firstTaskType" 
+                    placeholder="请选择任务类型（默认gender）"
+                    filterable
+                    clearable
+                  >
+                    <el-option-group label="常用任务">
+                      <el-option
+                        v-for="task in PopularTaskTypes"
+                        :key="task.value"
+                        :label="task.label"
+                        :value="task.value"
+                      />
+                    </el-option-group>
+                    <el-option-group 
+                      v-for="category in taskCategories" 
+                      :key="category.name"
+                      :label="category.label"
+                    >
+                      <el-option
+                        v-for="task in category.tasks"
+                        :key="task.value"
+                        :label="task.label"
+                        :value="task.value"
+                      />
+                    </el-option-group>
+                  </el-select>
+                </el-form-item>
+              </el-col>
               <el-col :span="12">
                 <el-form-item label="导出数量">
                   <el-input-number 
                     v-model="mergeForm.limit" 
                     :min="0" 
                     :max="1000000"
-                    placeholder="不填或0表示导出全部"
+                    :placeholder="mergeForm.downloadType === 'txt' ? '不填导出全部' : '默认10000'"
                     style="width: 100%"
                   />
+                  <div class="form-item-tip" v-if="mergeForm.downloadType === 'txt'">
+                    TXT导出不填则导出全部（已去重手机号）
+                  </div>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -679,15 +659,15 @@ const queryResult = ref(null)
 // 合并下载表单
 const mergeForm = reactive({
   countryCode: 'US',
-  limit: null,
+  downloadType: 'excel',
   firstTaskType: 'gender',
-  secondTaskType: null,
+  limit: null,
+  skip: 0,
   minAge: null,
   maxAge: null,
   sex: null,
   excludeSkin: null,
-  checkUserNameEmpty: null,
-  skip: 0
+  checkUserNameEmpty: null
 })
 
 const mergeLoading = ref(false)
@@ -1003,16 +983,16 @@ const resetQueryForm = () => {
 }
 
 const resetMergeForm = () => {
-  mergeForm.firstTaskType = 'gender'
-  mergeForm.secondTaskType = 'rcsValid'
   mergeForm.countryCode = 'US'
-  mergeForm.limit = 100000
+  mergeForm.downloadType = 'excel'
+  mergeForm.firstTaskType = 'gender'
+  mergeForm.limit = null
   mergeForm.skip = 0
-  mergeForm.minAge = 18
-  mergeForm.maxAge = 35
-  mergeForm.sex = 0
-  mergeForm.excludeSkin = 2
-  mergeForm.checkUserNameEmpty = 1
+  mergeForm.minAge = null
+  mergeForm.maxAge = null
+  mergeForm.sex = null
+  mergeForm.excludeSkin = null
+  mergeForm.checkUserNameEmpty = null
   mergeResult.value = null
   batchProgress.show = false
 }
@@ -1091,6 +1071,13 @@ const resetCountForm = () => {
 
 .download-btn {
   width: 100%;
+}
+
+.form-item-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .batch-progress {

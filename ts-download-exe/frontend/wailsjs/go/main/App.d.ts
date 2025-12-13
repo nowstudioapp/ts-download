@@ -10,6 +10,8 @@ export function GetExcelFiles(arg1:string):Promise<Array<string>>;
 
 export function Greet(arg1:string):Promise<string>;
 
+export function InterleaveTxtFiles(arg1:main.TxtInterleaveConfig):Promise<main.TxtInterleaveResult>;
+
 export function MergeExcelFiles(arg1:Array<string>,arg2:main.MergeConfig):Promise<main.MergeResult>;
 
 export function ProcessAgeColumn(arg1:main.AgeProcessConfig):Promise<main.AgeProcessResult>;
@@ -29,5 +31,3 @@ export function SelectTxtFile():Promise<string>;
 export function SplitPhoneNumbers(arg1:main.PhoneSplitConfig):Promise<main.PhoneSplitResult>;
 
 export function UpdateExcelFile(arg1:main.UpdateConfig):Promise<main.UpdateResult>;
-
-export function InterleaveTxtFiles(arg1:main.TxtInterleaveConfig):Promise<main.TxtInterleaveResult>;

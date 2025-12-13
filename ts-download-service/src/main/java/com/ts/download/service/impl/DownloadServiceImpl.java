@@ -448,20 +448,27 @@ public class DownloadServiceImpl implements DownloadService {
         String countryCode = reqDTO.getCountryCode();
         Integer limit = reqDTO.getLimit();
         Integer skip = reqDTO.getSkip();
+        String downloadType = reqDTO.getDownloadType();
 
-        log.info("=== 开始生成合并下载URL ===，firstTaskType={}, secondTaskType={}, countryCode={}, limit={}, skip={}",
-                firstTaskType, secondTaskType, countryCode, limit, skip);
+        log.info("=== 开始生成合并下载URL ===，firstTaskType={}, secondTaskType={}, countryCode={}, limit={}, skip={}, downloadType={}",
+                firstTaskType, secondTaskType, countryCode, limit, skip, downloadType);
 
         // 转换性别参数（某些任务类型如sieveAvatar、tgEffective等，sex字段存储的是中文）
         Integer sexParam = convertSexParam(firstTaskType, reqDTO.getSex());
         log.info("性别参数转换：原始={}, 转换后={}", reqDTO.getSex(), sexParam);
 
+        // TXT导出：使用流式处理，只查询phone字段，直接写入文件，避免内存溢出
+        if ("txt".equalsIgnoreCase(downloadType)) {
+            return generatePhoneTxtFileStream(reqDTO, firstTaskType, countryCode, sexParam);
+        }
+
+        // Excel导出：保持原有逻辑
         // 检查是否需要合并第二个任务类型
         boolean needMerge = secondTaskType != null && !secondTaskType.trim().isEmpty();
         log.info("是否需要合并第二个任务类型：{}", needMerge);
 
         // 准备查询参数
-        int targetLimit = (limit != null && limit > 0) ? limit : 10000; // 目标导出数量
+        int targetLimit = (limit != null && limit > 0) ? limit : 10000; // Excel默认10000条
         int skipCount = (skip != null && skip > 0) ? skip : 0; // 跳过数量
 
         // 1. 统计符合条件的总记录数（分批下载时跳过统计以提高性能）
@@ -567,7 +574,7 @@ public class DownloadServiceImpl implements DownloadService {
             throw new RuntimeException("没有找到匹配的记录");
         }
 
-        // 3. 生成Excel文件并上传
+        // 3. 生成Excel文件
         String fileName = System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8) 
                 + "_merge_" + firstTaskType + "_" + secondTaskType + "_" + countryCode + ".xlsx";
         String downloadUrl = generateMergeExcelFileFromMap(mergedRecords, firstTaskType, secondTaskType, countryCode, fileName);
@@ -575,6 +582,85 @@ public class DownloadServiceImpl implements DownloadService {
         log.info("=== 合并下载URL生成完成 ===，总耗时：{}ms, URL={}", 
                 System.currentTimeMillis() - totalStartTime, downloadUrl);
 
+        return downloadUrl;
+    }
+
+    /**
+     * 流式生成TXT文件（只含手机号），避免内存溢出
+     */
+    private String generatePhoneTxtFileStream(MergeDownloadReqDTO reqDTO, String taskType, 
+                                               String countryCode, Integer sexParam) throws Exception {
+        long startTime = System.currentTimeMillis();
+        
+        // 生成文件名
+        String fileName = System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8) 
+                + "_phones_" + taskType + "_" + countryCode + ".txt";
+        
+        // 生成日期目录
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+        String dateDir = dateFormat.format(new Date());
+        
+        log.info("开始流式生成TXT文件：{}", fileName);
+        
+        // 创建临时文件
+        File tempFile = new File(System.getProperty("java.io.tmpdir"), fileName);
+        
+        try (BufferedWriter writer = new BufferedWriter(
+                new OutputStreamWriter(new FileOutputStream(tempFile), StandardCharsets.UTF_8), 65536)) {
+            
+            final long[] count = {0};
+            
+            // 流式查询，边查询边写入
+            clickHouseTaskRecordDao.streamPhoneNumbers(
+                    taskType, countryCode,
+                    reqDTO.getMinAge(), reqDTO.getMaxAge(),
+                    sexParam, reqDTO.getExcludeSkin(),
+                    reqDTO.getCheckUserNameEmpty(),
+                    (phones) -> {
+                        try {
+                            for (String phone : phones) {
+                                writer.write(phone);
+                                writer.newLine();
+                                count[0]++;
+                            }
+                            // 每批写入后刷新
+                            writer.flush();
+                            log.info("已写入：{}条", count[0]);
+                        } catch (IOException e) {
+                            throw new RuntimeException("写入文件失败", e);
+                        }
+                    },
+                    10000  // 每批10000条
+            );
+            
+            log.info("TXT文件生成完成，总记录数：{}，耗时：{}ms", count[0], System.currentTimeMillis() - startTime);
+            
+            if (count[0] == 0) {
+                throw new RuntimeException("没有找到符合条件的记录");
+            }
+            
+        }
+        
+        // 保存文件
+        long uploadStart = System.currentTimeMillis();
+        String downloadUrl;
+        try {
+            if (localFileProperties.isEnabled()) {
+                downloadUrl = localFileUtil.saveToLocal(tempFile, "download/" + dateDir);
+                log.info("TXT文件保存到本地耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            } else {
+                downloadUrl = cosUtil.uploadToS3(tempFile, "download/" + dateDir);
+                log.info("TXT文件上传到COS耗时：{}ms", System.currentTimeMillis() - uploadStart);
+            }
+        } finally {
+            // 清理临时文件
+            if (tempFile.exists()) {
+                boolean deleted = tempFile.delete();
+                log.info("临时TXT文件清理：{}", deleted ? "成功" : "失败");
+            }
+        }
+        
+        log.info("=== TXT导出完成 ===，总耗时：{}ms, URL={}", System.currentTimeMillis() - startTime, downloadUrl);
         return downloadUrl;
     }
 

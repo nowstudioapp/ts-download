@@ -42,4 +42,7 @@ public class MergeDownloadReqDTO {
 
     @ApiModelProperty(value = "跳过记录数量（用于分批下载，不传或0表示从头开始）", example = "100000")
     private Integer skip;
+
+    @ApiModelProperty(value = "下载类型：excel=Excel文件，txt=TXT文件（只含手机号）", example = "excel")
+    private String downloadType = "excel";
 }
