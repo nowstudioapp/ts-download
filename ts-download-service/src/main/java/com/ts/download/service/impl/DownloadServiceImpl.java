@@ -610,12 +610,18 @@ public class DownloadServiceImpl implements DownloadService {
             
             final long[] count = {0};
             
-            // 流式查询，边查询边写入
+            // 获取skip和limit参数
+            Integer skip = reqDTO.getSkip();
+            Integer limit = reqDTO.getLimit();
+            log.info("TXT导出参数：skip={}, limit={}", skip, limit);
+            
+            // 流式查询，边查询边写入（支持skip和limit）
             clickHouseTaskRecordDao.streamPhoneNumbers(
                     taskType, countryCode,
                     reqDTO.getMinAge(), reqDTO.getMaxAge(),
                     sexParam, reqDTO.getExcludeSkin(),
                     reqDTO.getCheckUserNameEmpty(),
+                    skip, limit,  // 传递skip和limit参数
                     (phones) -> {
                         try {
                             for (String phone : phones) {

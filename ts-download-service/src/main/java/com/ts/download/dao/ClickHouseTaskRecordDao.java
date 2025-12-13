@@ -505,6 +505,8 @@ public class ClickHouseTaskRecordDao {
      * @param sex 性别
      * @param excludeSkin 排除肤色
      * @param checkUserNameEmpty 检查用户名是否为空
+     * @param skip 跳过数量
+     * @param limit 限制数量
      * @param callback 每批数据的回调处理
      * @param batchSize 每批数量
      */
@@ -512,6 +514,7 @@ public class ClickHouseTaskRecordDao {
                                    Integer minAge, Integer maxAge,
                                    Integer sex, Integer excludeSkin,
                                    Integer checkUserNameEmpty,
+                                   Integer skip, Integer limit,
                                    java.util.function.Consumer<List<String>> callback,
                                    int batchSize) {
         String tableName = getTableName(taskType, countryCode);
@@ -552,6 +555,17 @@ public class ClickHouseTaskRecordDao {
         }
         
         sql.append(" ORDER BY phone");
+        
+        // 添加 LIMIT 和 OFFSET（支持skip和limit参数）
+        if (skip != null && skip > 0) {
+            if (limit != null && limit > 0) {
+                sql.append(" LIMIT ").append(skip).append(", ").append(limit);
+            } else {
+                sql.append(" OFFSET ").append(skip);
+            }
+        } else if (limit != null && limit > 0) {
+            sql.append(" LIMIT ").append(limit);
+        }
 
         log.info("流式查询SQL: {}", sql.toString());
 

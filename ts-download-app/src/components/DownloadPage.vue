@@ -836,10 +836,18 @@ const handleMergeDownload = async () => {
   mergeResult.value = null
   
   try {
-    // 过滤掉空值
+    // 过滤掉空值，但保留数字0
     const requestData = Object.fromEntries(
-      Object.entries(mergeForm).filter(([_, value]) => value !== null && value !== undefined && value !== '')
+      Object.entries(mergeForm).filter(([key, value]) => {
+        // 数字类型（包括0）保留
+        if (typeof value === 'number') return true
+        // 其他类型过滤掉null、undefined、空字符串
+        return value !== null && value !== undefined && value !== ''
+      })
     )
+    
+    // 调试日志 - 查看实际发送的数据
+    console.log('合并下载请求参数:', JSON.stringify(requestData, null, 2))
     
     const result = await apiCall('/api/download/mergeDownload', requestData)
     mergeResult.value = result
