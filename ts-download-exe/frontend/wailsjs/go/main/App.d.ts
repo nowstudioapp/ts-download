@@ -6,7 +6,11 @@ export function FilterExcelFile(arg1:main.FilterConfig):Promise<main.FilterResul
 
 export function GenerateActivityData(arg1:main.ActivityConfig):Promise<main.ActivityResult>;
 
+export function GetCountryList():Promise<Array<main.CountryOption>>;
+
 export function GetExcelFiles(arg1:string):Promise<Array<string>>;
+
+export function GetExcelHeaders(arg1:string):Promise<Array<string>>;
 
 export function Greet(arg1:string):Promise<string>;
 
@@ -18,6 +22,8 @@ export function ProcessAgeColumn(arg1:main.AgeProcessConfig):Promise<main.AgePro
 
 export function ProcessTxtFiles(arg1:main.TxtProcessConfig):Promise<main.TxtProcessResult>;
 
+export function SelectExcelFile():Promise<string>;
+
 export function SelectExcelFiles():Promise<Array<string>>;
 
 export function SelectFolder():Promise<string>;
@@ -27,6 +33,8 @@ export function SelectSaveFile():Promise<string>;
 export function SelectSaveTxtFile():Promise<string>;
 
 export function SelectTxtFile():Promise<string>;
+
+export function SplitByAreaCode(arg1:main.AreaCodeSplitConfig):Promise<main.AreaCodeSplitResult>;
 
 export function SplitPhoneNumbers(arg1:main.PhoneSplitConfig):Promise<main.PhoneSplitResult>;
 

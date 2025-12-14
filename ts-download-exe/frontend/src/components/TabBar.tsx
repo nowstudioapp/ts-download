@@ -21,7 +21,8 @@ const tabs: Tab[] = [
   { id: 'activity-generator', label: '活跃数据', icon: '📊' },
   { id: 'txt-processor', label: 'TXT处理', icon: '📝' },
   { id: 'phone-splitter', label: '号码拆分', icon: '📱' },
-  { id: 'txt-interleaver', label: '文本打散', icon: '🔀' }
+  { id: 'txt-interleaver', label: '文本打散', icon: '🔀' },
+  { id: 'area-code-splitter', label: '区号拆分', icon: '🌍' }
 ];
 
 const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {

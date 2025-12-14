@@ -8,9 +8,10 @@ import ActivityGenerator from './pages/ActivityGenerator';
 import TxtProcessor from './pages/TxtProcessor';
 import PhoneSplitter from './pages/PhoneSplitter';
 import TxtInterleaver from './pages/TxtInterleaver';
+import AreaCodeSplitter from './pages/AreaCodeSplitter';
 import './App.css';
 
-export type TabType = 'file-merge' | 'file-update' | 'file-filter' | 'file-duplicate' | 'activity-generator' | 'txt-processor' | 'phone-splitter' | 'txt-interleaver';
+export type TabType = 'file-merge' | 'file-update' | 'file-filter' | 'file-duplicate' | 'activity-generator' | 'txt-processor' | 'phone-splitter' | 'txt-interleaver' | 'area-code-splitter';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('file-merge');
@@ -33,6 +34,8 @@ const App: React.FC = () => {
         return <PhoneSplitter />;
       case 'txt-interleaver':
         return <TxtInterleaver />;
+      case 'area-code-splitter':
+        return <AreaCodeSplitter />;
       default:
         return <div className="placeholder">未知页面</div>;
     }

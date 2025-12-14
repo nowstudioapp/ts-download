@@ -74,6 +74,58 @@ export namespace main {
 	        this.rowsModified = source["rowsModified"];
 	    }
 	}
+	export class AreaCodeSplitConfig {
+	    excelFile: string;
+	    phoneColumn: string;
+	    countryCode: string;
+	    outputDir: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AreaCodeSplitConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.excelFile = source["excelFile"];
+	        this.phoneColumn = source["phoneColumn"];
+	        this.countryCode = source["countryCode"];
+	        this.outputDir = source["outputDir"];
+	    }
+	}
+	export class AreaCodeSplitResult {
+	    success: boolean;
+	    message: string;
+	    outputDir: string;
+	    totalRows: number;
+	    splitResults: Record<string, number>;
+	
+	    static createFrom(source: any = {}) {
+	        return new AreaCodeSplitResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.message = source["message"];
+	        this.outputDir = source["outputDir"];
+	        this.totalRows = source["totalRows"];
+	        this.splitResults = source["splitResults"];
+	    }
+	}
+	export class CountryOption {
+	    code: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CountryOption(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	    }
+	}
 	export class FilterConfig {
 	    excelFile: string;
 	    txtFile: string;

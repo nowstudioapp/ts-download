@@ -10,8 +10,16 @@ export function GenerateActivityData(arg1) {
   return window['go']['main']['App']['GenerateActivityData'](arg1);
 }
 
+export function GetCountryList() {
+  return window['go']['main']['App']['GetCountryList']();
+}
+
 export function GetExcelFiles(arg1) {
   return window['go']['main']['App']['GetExcelFiles'](arg1);
+}
+
+export function GetExcelHeaders(arg1) {
+  return window['go']['main']['App']['GetExcelHeaders'](arg1);
 }
 
 export function Greet(arg1) {
@@ -34,6 +42,10 @@ export function ProcessTxtFiles(arg1) {
   return window['go']['main']['App']['ProcessTxtFiles'](arg1);
 }
 
+export function SelectExcelFile() {
+  return window['go']['main']['App']['SelectExcelFile']();
+}
+
 export function SelectExcelFiles() {
   return window['go']['main']['App']['SelectExcelFiles']();
 }
@@ -52,6 +64,10 @@ export function SelectSaveTxtFile() {
 
 export function SelectTxtFile() {
   return window['go']['main']['App']['SelectTxtFile']();
+}
+
+export function SplitByAreaCode(arg1) {
+  return window['go']['main']['App']['SplitByAreaCode'](arg1);
 }
 
 export function SplitPhoneNumbers(arg1) {

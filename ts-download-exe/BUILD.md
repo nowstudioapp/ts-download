@@ -31,4 +31,7 @@ cd ..
 wails dev
 
 # 构建 EXE
+cd frontend
+npm run build
+cd ..
 wails build -nsis
