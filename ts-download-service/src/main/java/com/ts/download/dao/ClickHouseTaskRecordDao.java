@@ -186,12 +186,13 @@ public class ClickHouseTaskRecordDao {
     public List<TsWsTaskRecord> selectTaskRecordListWithConditionsAndSkip(String taskType, String countryCode, 
                                                                            Integer minAge, Integer maxAge, 
                                                                            Integer sex, Integer excludeSkin, 
+                                                                           Integer includeSkin,
                                                                            Integer checkUserNameEmpty,
                                                                            Integer skip, Integer limit) {
         String tableName = getTableName(taskType, countryCode);
         log.info("=== ClickHouse条件查询（支持skip） ===");
-        log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, skip: {}, limit: {}", 
-                taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, skip, limit);
+        log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, includeSkin: {}, skip: {}, limit: {}", 
+                taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, includeSkin, skip, limit);
 
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM ").append(tableName);
@@ -212,9 +213,14 @@ public class ClickHouseTaskRecordDao {
             sql.append(" AND sex = '").append(sexValue).append("'");
         }
         
-        // 添加排除肤色条件
+        // 添加排除肤色条件（TG类任务需要转换为中文，sieveAvatar的黑色兼容black）
         if (excludeSkin != null) {
-            sql.append(" AND skin != '").append(excludeSkin).append("'");
+            sql.append(buildSkinExcludeCondition(taskType, excludeSkin));
+        }
+        
+        // 添加指定肤色条件（只导出指定肤色的数据，TG类任务需要转换为中文，sieveAvatar的黑色兼容black）
+        if (includeSkin != null) {
+            sql.append(buildSkinIncludeCondition(taskType, includeSkin));
         }
         
         // 添加user_name是否为空的条件
@@ -269,12 +275,13 @@ public class ClickHouseTaskRecordDao {
     public List<TsWsTaskRecord> selectTaskRecordListWithConditionsByTime(String taskType, String countryCode, 
                                                                            Integer minAge, Integer maxAge, 
                                                                            Integer sex, Integer excludeSkin, 
+                                                                           Integer includeSkin,
                                                                            Integer checkUserNameEmpty,
                                                                            String lastCreateTime, Integer limit) {
         String tableName = getTableName(taskType, countryCode);
         log.info("=== ClickHouse条件查询（按时间，包含pic字段） ===");
-        log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, lastCreateTime: {}, limit: {}", 
-                taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, lastCreateTime, limit);
+        log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, includeSkin: {}, lastCreateTime: {}, limit: {}", 
+                taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, includeSkin, lastCreateTime, limit);
 
         StringBuilder sql = new StringBuilder();
         // 包含pic字段（合并下载需要头像列）
@@ -299,9 +306,14 @@ public class ClickHouseTaskRecordDao {
             sql.append(" AND sex = '").append(sexValue).append("'");
         }
         
-        // 添加排除肤色条件
+        // 添加排除肤色条件（TG类任务需要转换为中文，sieveAvatar的黑色兼容black）
         if (excludeSkin != null) {
-            sql.append(" AND skin != '").append(excludeSkin).append("'");
+            sql.append(buildSkinExcludeCondition(taskType, excludeSkin));
+        }
+        
+        // 添加指定肤色条件（只导出指定肤色的数据，TG类任务需要转换为中文，sieveAvatar的黑色兼容black）
+        if (includeSkin != null) {
+            sql.append(buildSkinIncludeCondition(taskType, includeSkin));
         }
         
         // 添加user_name是否为空的条件
@@ -396,6 +408,7 @@ public class ClickHouseTaskRecordDao {
     public Long countRecordsWithConditions(String taskType, String countryCode, 
                                            Integer minAge, Integer maxAge, 
                                            Integer sex, Integer excludeSkin,
+                                           Integer includeSkin,
                                            Integer checkUserNameEmpty) {
         String tableName = getTableName(taskType, countryCode);
         
@@ -418,9 +431,14 @@ public class ClickHouseTaskRecordDao {
             sql.append(" AND sex = '").append(sexValue).append("'");
         }
         
-        // 添加排除肤色条件
+        // 添加排除肤色条件（TG类任务需要转换为中文，sieveAvatar的黑色兼容black）
         if (excludeSkin != null) {
-            sql.append(" AND skin != '").append(excludeSkin).append("'");
+            sql.append(buildSkinExcludeCondition(taskType, excludeSkin));
+        }
+        
+        // 添加指定肤色条件（只统计指定肤色的数据，TG类任务需要转换为中文，sieveAvatar的黑色兼容black）
+        if (includeSkin != null) {
+            sql.append(buildSkinIncludeCondition(taskType, includeSkin));
         }
         
         // 添加user_name是否为空的条件
@@ -513,6 +531,7 @@ public class ClickHouseTaskRecordDao {
     public void streamPhoneNumbers(String taskType, String countryCode,
                                    Integer minAge, Integer maxAge,
                                    Integer sex, Integer excludeSkin,
+                                   Integer includeSkin,
                                    Integer checkUserNameEmpty,
                                    Integer skip, Integer limit,
                                    java.util.function.Consumer<List<String>> callback,
@@ -540,9 +559,14 @@ public class ClickHouseTaskRecordDao {
             sql.append(" AND sex = '").append(sexValue).append("'");
         }
         
-        // 添加排除肤色条件
+        // 添加排除肤色条件（TG类任务需要转换为中文，sieveAvatar的黑色兼容black）
         if (excludeSkin != null) {
-            sql.append(" AND skin != '").append(excludeSkin).append("'");
+            sql.append(buildSkinExcludeCondition(taskType, excludeSkin));
+        }
+        
+        // 添加指定肤色条件（只导出指定肤色的数据，TG类任务需要转换为中文，sieveAvatar的黑色兼容black）
+        if (includeSkin != null) {
+            sql.append(buildSkinIncludeCondition(taskType, includeSkin));
         }
         
         // 添加user_name是否为空的条件
@@ -612,5 +636,94 @@ public class ClickHouseTaskRecordDao {
         
         // 其他任务类型直接返回数字字符串
         return sex.toString();
+    }
+
+    /**
+     * 转换肤色值（某些任务类型的skin字段存储的是中文）
+     * @param taskType 任务类型
+     * @param skin 肤色参数（0=黄种人, 1=棕种人, 2=黑种人, 3=白种人）
+     * @return 转换后的肤色值数组（sieveAvatar的黑种人需要兼容"黑种人"和"black"）
+     */
+    private String[] convertSkinValues(String taskType, Integer skin) {
+        if (skin == null) {
+            return null;
+        }
+        
+        // TG类任务（sieveAvatar、tgEffective、sieveLive）的skin字段存储的是中文
+        if (taskType != null && (taskType.equals("sieveAvatar") || taskType.equals("tgEffective") || taskType.equals("sieveLive"))) {
+            switch (skin) {
+                case 0:
+                    return new String[]{"黄种人"};
+                case 1:
+                    return new String[]{"棕种人"};
+                case 2:
+                    // sieveAvatar的黑种人需要兼容"黑种人"和"black"两种存储格式
+                    if ("sieveAvatar".equals(taskType)) {
+                        return new String[]{"黑种人", "black"};
+                    }
+                    return new String[]{"黑种人"};
+                case 3:
+                    return new String[]{"白种人"};
+                default:
+                    return new String[]{skin.toString()};
+            }
+        }
+        
+        // 其他任务类型直接返回数字字符串
+        return new String[]{skin.toString()};
+    }
+
+    /**
+     * 获取肤色/人种字段名（TG类任务用ethnicity，WS类任务用skin）
+     */
+    private String getSkinFieldName(String taskType) {
+        if (taskType != null && (taskType.equals("sieveAvatar") || taskType.equals("tgEffective") || taskType.equals("sieveLive"))) {
+            return "ethnicity";
+        }
+        return "skin";
+    }
+
+    /**
+     * 生成肤色包含条件SQL（TG用ethnicity，WS用skin）
+     */
+    private String buildSkinIncludeCondition(String taskType, Integer skin) {
+        String[] values = convertSkinValues(taskType, skin);
+        if (values == null || values.length == 0) {
+            return "";
+        }
+        String fieldName = getSkinFieldName(taskType);
+        if (values.length == 1) {
+            return " AND " + fieldName + " = '" + values[0] + "'";
+        }
+        // 多个值使用 IN
+        StringBuilder sb = new StringBuilder(" AND " + fieldName + " IN (");
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append("'").append(values[i]).append("'");
+        }
+        sb.append(")");
+        return sb.toString();
+    }
+
+    /**
+     * 生成肤色排除条件SQL（TG用ethnicity，WS用skin）
+     */
+    private String buildSkinExcludeCondition(String taskType, Integer skin) {
+        String[] values = convertSkinValues(taskType, skin);
+        if (values == null || values.length == 0) {
+            return "";
+        }
+        String fieldName = getSkinFieldName(taskType);
+        if (values.length == 1) {
+            return " AND " + fieldName + " != '" + values[0] + "'";
+        }
+        // 多个值使用 NOT IN
+        StringBuilder sb = new StringBuilder(" AND " + fieldName + " NOT IN (");
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append("'").append(values[i]).append("'");
+        }
+        sb.append(")");
+        return sb.toString();
     }
 }

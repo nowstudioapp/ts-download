@@ -477,7 +477,7 @@ public class DownloadServiceImpl implements DownloadService {
         } else {
             Long totalCount = clickHouseTaskRecordDao.countRecordsWithConditions(
                     firstTaskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), 
-                    sexParam, reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty());
+                    sexParam, reqDTO.getExcludeSkin(), reqDTO.getIncludeSkin(), reqDTO.getCheckUserNameEmpty());
             log.info("第一个任务类型符合条件的总记录数：{}", totalCount);
 
             if (totalCount == null || totalCount == 0) {
@@ -493,7 +493,7 @@ public class DownloadServiceImpl implements DownloadService {
         // 查询第一个任务类型的数据（自动分批查询）
         List<TsWsTaskRecord> firstTaskRecords = queryDataWithBatch(
                 firstTaskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), 
-                sexParam, reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty(), skipCount, targetLimit);
+                sexParam, reqDTO.getExcludeSkin(), reqDTO.getIncludeSkin(), reqDTO.getCheckUserNameEmpty(), skipCount, targetLimit);
         
         log.info("第一个任务类型查询完成，总共查询到：{}条", firstTaskRecords.size());
         
@@ -620,6 +620,7 @@ public class DownloadServiceImpl implements DownloadService {
                     taskType, countryCode,
                     reqDTO.getMinAge(), reqDTO.getMaxAge(),
                     sexParam, reqDTO.getExcludeSkin(),
+                    reqDTO.getIncludeSkin(),
                     reqDTO.getCheckUserNameEmpty(),
                     skip, limit,  // 传递skip和limit参数
                     (phones) -> {
@@ -685,7 +686,7 @@ public class DownloadServiceImpl implements DownloadService {
      */
     private List<TsWsTaskRecord> queryDataWithBatch(String taskType, String countryCode, 
                                                     Integer minAge, Integer maxAge, Integer sex, 
-                                                    Integer excludeSkin, Integer checkUserNameEmpty,
+                                                    Integer excludeSkin, Integer includeSkin, Integer checkUserNameEmpty,
                                                     Integer skip, Integer totalLimit) {
         final int BATCH_SIZE = 10000; // 每批1万条
         List<TsWsTaskRecord> allRecords = new ArrayList<>();
@@ -703,7 +704,7 @@ public class DownloadServiceImpl implements DownloadService {
             // 获取第skip条记录的时间点作为分页起始点
             int skipOffset = Math.max(0, skip - 1); // 避免负数
             List<TsWsTaskRecord> skipRecords = clickHouseTaskRecordDao.selectTaskRecordListWithConditionsAndSkip(
-                    taskType, countryCode, minAge, maxAge, sex, excludeSkin, 
+                    taskType, countryCode, minAge, maxAge, sex, excludeSkin, includeSkin,
                     checkUserNameEmpty, skipOffset, 1); // 取第skip条记录的时间点
             
             long skipTime = System.currentTimeMillis() - skipStart;
@@ -728,7 +729,7 @@ public class DownloadServiceImpl implements DownloadService {
             
             // 使用基于时间的分页查询
             List<TsWsTaskRecord> batchRecords = clickHouseTaskRecordDao.selectTaskRecordListWithConditionsByTime(
-                    taskType, countryCode, minAge, maxAge, sex, excludeSkin, 
+                    taskType, countryCode, minAge, maxAge, sex, excludeSkin, includeSkin,
                     checkUserNameEmpty, lastCreateTime, currentBatchSize);
             
             long batchTime = System.currentTimeMillis() - batchStart;
@@ -1173,8 +1174,8 @@ public class DownloadServiceImpl implements DownloadService {
         String taskType = reqDTO.getTaskType();
         String countryCode = reqDTO.getCountryCode();
 
-        log.info("=== 开始查询任务记录数量 ===，taskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, checkUserNameEmpty={}",
-                taskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty());
+        log.info("=== 开始查询任务记录数量 ===，taskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, includeSkin={}, checkUserNameEmpty={}",
+                taskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getIncludeSkin(), reqDTO.getCheckUserNameEmpty());
 
         // 转换性别参数（某些任务类型如sieveAvatar、tgEffective等，sex字段存储的是中文）
         Integer sexParam = convertSexParam(taskType, reqDTO.getSex());
@@ -1183,7 +1184,7 @@ public class DownloadServiceImpl implements DownloadService {
         // 查询符合条件的记录数
         Long totalCount = clickHouseTaskRecordDao.countRecordsWithConditions(
                 taskType, countryCode, reqDTO.getMinAge(), reqDTO.getMaxAge(), 
-                sexParam, reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty());
+                sexParam, reqDTO.getExcludeSkin(), reqDTO.getIncludeSkin(), reqDTO.getCheckUserNameEmpty());
         
         if (totalCount == null || totalCount == 0) {
             log.warn("未找到符合条件的任务记录，taskType={}, countryCode={}", taskType, countryCode);
