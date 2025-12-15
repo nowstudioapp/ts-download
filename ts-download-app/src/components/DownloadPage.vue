@@ -285,10 +285,10 @@
             
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="任务类型">
+                <el-form-item label="第一任务类型">
                   <el-select 
                     v-model="mergeForm.firstTaskType" 
-                    placeholder="请选择任务类型（默认gender）"
+                    placeholder="请选择第一任务类型（默认gender）"
                     filterable
                     clearable
                   >
@@ -315,6 +315,40 @@
                   </el-select>
                 </el-form-item>
               </el-col>
+              <el-col :span="12">
+                <el-form-item label="第二任务类型">
+                  <el-select 
+                    v-model="mergeForm.secondTaskType" 
+                    placeholder="可选，不选则只使用第一任务类型"
+                    filterable
+                    clearable
+                  >
+                    <el-option-group label="常用任务">
+                      <el-option
+                        v-for="task in PopularTaskTypes"
+                        :key="task.value"
+                        :label="task.label"
+                        :value="task.value"
+                      />
+                    </el-option-group>
+                    <el-option-group 
+                      v-for="category in taskCategories" 
+                      :key="category.name"
+                      :label="category.label"
+                    >
+                      <el-option
+                        v-for="task in category.tasks"
+                        :key="task.value"
+                        :label="task.label"
+                        :value="task.value"
+                      />
+                    </el-option-group>
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            
+            <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="导出数量">
                   <el-input-number 
@@ -392,6 +426,16 @@
                     <el-option label="排除棕色皮肤" :value="1" />
                     <el-option label="排除黑色皮肤" :value="2" />
                     <el-option label="排除白色皮肤" :value="3" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="指定肤色">
+                  <el-select v-model="mergeForm.includeSkin" placeholder="可选（用于TG头像/WS性别）" clearable>
+                    <el-option label="黄色皮肤" :value="0" />
+                    <el-option label="棕色皮肤" :value="1" />
+                    <el-option label="黑色皮肤" :value="2" />
+                    <el-option label="白色皮肤" :value="3" />
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -587,6 +631,19 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
+                <el-form-item label="指定肤色">
+                  <el-select v-model="countForm.includeSkin" placeholder="可选（用于TG头像/WS性别）" clearable>
+                    <el-option label="黄色皮肤" :value="0" />
+                    <el-option label="棕色皮肤" :value="1" />
+                    <el-option label="黑色皮肤" :value="2" />
+                    <el-option label="白色皮肤" :value="3" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            
+            <el-row :gutter="20">
+              <el-col :span="12">
                 <el-form-item label="检查用户名">
                   <el-select v-model="countForm.checkUserNameEmpty" placeholder="可选" clearable>
                     <el-option label="查询用户名为空的" :value="0" />
@@ -661,12 +718,14 @@ const mergeForm = reactive({
   countryCode: 'US',
   downloadType: 'excel',
   firstTaskType: 'gender',
+  secondTaskType: null,
   limit: null,
   skip: 0,
   minAge: null,
   maxAge: null,
   sex: null,
   excludeSkin: null,
+  includeSkin: null,
   checkUserNameEmpty: null
 })
 
@@ -693,6 +752,7 @@ const countForm = reactive({
   maxAge: null,
   sex: null,
   excludeSkin: null,
+  includeSkin: null,
   checkUserNameEmpty: null
 })
 
@@ -994,12 +1054,14 @@ const resetMergeForm = () => {
   mergeForm.countryCode = 'US'
   mergeForm.downloadType = 'excel'
   mergeForm.firstTaskType = 'gender'
+  mergeForm.secondTaskType = null
   mergeForm.limit = null
   mergeForm.skip = 0
   mergeForm.minAge = null
   mergeForm.maxAge = null
   mergeForm.sex = null
   mergeForm.excludeSkin = null
+  mergeForm.includeSkin = null
   mergeForm.checkUserNameEmpty = null
   mergeResult.value = null
   batchProgress.show = false
@@ -1012,6 +1074,7 @@ const resetCountForm = () => {
   countForm.maxAge = null
   countForm.sex = null
   countForm.excludeSkin = null
+  countForm.includeSkin = null
   countForm.checkUserNameEmpty = null
   countResult.value = null
 }
