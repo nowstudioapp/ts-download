@@ -1499,21 +1499,9 @@ func cleanString(s string) string {
 // readTxtFile 读取TXT文件内容
 func readTxtFile(filePath string) ([]string, error) {
 	// 处理文件路径
-	actualPath := filePath
-	if !filepath.IsAbs(filePath) {
-		// 尝试在用户下载目录查找
-		userHome, _ := os.UserHomeDir()
-		downloadPath := filepath.Join(userHome, "Downloads", filePath)
-		if _, err := os.Stat(downloadPath); err == nil {
-			actualPath = downloadPath
-		} else {
-			// 尝试在当前目录查找
-			currentDir, _ := os.Getwd()
-			currentPath := filepath.Join(currentDir, filePath)
-			if _, err := os.Stat(currentPath); err == nil {
-				actualPath = currentPath
-			}
-		}
+	actualPath := findActualPath(filePath)
+	if actualPath == "" {
+		return nil, fmt.Errorf("找不到文件: %s (已搜索: Downloads, Desktop, 当前目录)", filepath.Base(filePath))
 	}
 
 	file, err := os.Open(actualPath)
