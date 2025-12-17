@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { SelectTxtFile, SelectSaveTxtFile, ProcessTxtFiles } from '../../wailsjs/go/main/App';
 import './TxtProcessor.css';
 
@@ -137,7 +137,15 @@ const TxtProcessor: React.FC = () => {
     }
 
     const file = txtFiles[0];
-    const fullPath = (file as any).path || (file as any).webkitRelativePath || file.name;
+    // 在 Wails 中，拖拽文件时 file.path 包含完整路径
+    const fullPath = (file as any).path;
+    
+    if (!fullPath || fullPath === file.name) {
+      // 如果无法获取完整路径，提示用户使用选择按钮
+      addLog('⚠️ 无法获取文件完整路径，请使用"选择文件"按钮');
+      return;
+    }
+    
     console.log('拖拽主TXT文件路径:', fullPath);
     
     setMainFile(fullPath);
@@ -170,7 +178,15 @@ const TxtProcessor: React.FC = () => {
     }
 
     const file = txtFiles[0];
-    const fullPath = (file as any).path || (file as any).webkitRelativePath || file.name;
+    // 在 Wails 中，拖拽文件时 file.path 包含完整路径
+    const fullPath = (file as any).path;
+    
+    if (!fullPath || fullPath === file.name) {
+      // 如果无法获取完整路径，提示用户使用选择按钮
+      addLog('⚠️ 无法获取文件完整路径，请使用"选择文件"按钮');
+      return;
+    }
+    
     console.log('拖拽副TXT文件路径:', fullPath);
     
     setSubFile(fullPath);
