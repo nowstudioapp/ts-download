@@ -413,6 +413,7 @@
                     <el-option label="女" :value="0" />
                     <el-option label="男" :value="1" />
                     <el-option label="未知" :value="-1" />
+                    <el-option label="无图片" :value="-2" />
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -614,6 +615,7 @@
                     <el-option label="女" :value="0" />
                     <el-option label="男" :value="1" />
                     <el-option label="未知" :value="-1" />
+                    <el-option label="无图片" :value="-2" />
                   </el-select>
                 </el-form-item>
               </el-col>
