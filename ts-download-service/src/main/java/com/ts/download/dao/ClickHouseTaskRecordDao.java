@@ -210,14 +210,8 @@ public class ClickHouseTaskRecordDao {
         // 添加性别条件（某些任务类型的sex字段存储的是中文）
         if (sex != null) {
             if (sex == -2) {
-                // -2 表示无图片：排除 0(女)、1(男)、-1(未知)，查询其他性别值
-                if (taskType != null && (taskType.equals("sieveAvatar") || taskType.equals("tgEffective") || taskType.equals("sieveLive"))) {
-                    // TG类任务的性别是中文
-                    sql.append(" AND sex NOT IN ('女', '男', '未知', '0', '1', '-1')");
-                } else {
-                    // 其他任务的性别是数字
-                    sql.append(" AND sex NOT IN ('0', '1', '-1')");
-                }
+                // -2 表示无图片：只查询性别为空或NULL的记录（不包含未知）
+                sql.append(" AND (sex = '' OR sex IS NULL)");
             } else {
                 String sexValue = convertSexValue(taskType, sex);
                 sql.append(" AND sex = '").append(sexValue).append("'");
@@ -314,14 +308,8 @@ public class ClickHouseTaskRecordDao {
         // 添加性别条件（某些任务类型的sex字段存储的是中文）
         if (sex != null) {
             if (sex == -2) {
-                // -2 表示无图片：排除 0(女)、1(男)、-1(未知)，查询其他性别值
-                if (taskType != null && (taskType.equals("sieveAvatar") || taskType.equals("tgEffective") || taskType.equals("sieveLive"))) {
-                    // TG类任务的性别是中文
-                    sql.append(" AND sex NOT IN ('女', '男', '未知', '0', '1', '-1')");
-                } else {
-                    // 其他任务的性别是数字
-                    sql.append(" AND sex NOT IN ('0', '1', '-1')");
-                }
+                // -2 表示无图片：只查询性别为空或NULL的记录（不包含未知）
+                sql.append(" AND (sex = '' OR sex IS NULL)");
             } else {
                 String sexValue = convertSexValue(taskType, sex);
                 sql.append(" AND sex = '").append(sexValue).append("'");
@@ -450,14 +438,8 @@ public class ClickHouseTaskRecordDao {
         // 添加性别条件（某些任务类型的sex字段存储的是中文）
         if (sex != null) {
             if (sex == -2) {
-                // -2 表示无图片：排除 0(女)、1(男)、-1(未知)，查询其他性别值
-                if (taskType != null && (taskType.equals("sieveAvatar") || taskType.equals("tgEffective") || taskType.equals("sieveLive"))) {
-                    // TG类任务的性别是中文
-                    sql.append(" AND sex NOT IN ('女', '男', '未知', '0', '1', '-1')");
-                } else {
-                    // 其他任务的性别是数字
-                    sql.append(" AND sex NOT IN ('0', '1', '-1')");
-                }
+                // -2 表示无图片：只查询性别为空或NULL的记录（不包含未知）
+                sql.append(" AND (sex = '' OR sex IS NULL)");
             } else {
                 String sexValue = convertSexValue(taskType, sex);
                 sql.append(" AND sex = '").append(sexValue).append("'");
@@ -589,14 +571,8 @@ public class ClickHouseTaskRecordDao {
         // 添加性别条件
         if (sex != null) {
             if (sex == -2) {
-                // -2 表示无图片：排除 0(女)、1(男)、-1(未知)，查询其他性别值
-                if (taskType != null && (taskType.equals("sieveAvatar") || taskType.equals("tgEffective") || taskType.equals("sieveLive"))) {
-                    // TG类任务的性别是中文
-                    sql.append(" AND sex NOT IN ('女', '男', '未知', '0', '1', '-1')");
-                } else {
-                    // 其他任务的性别是数字
-                    sql.append(" AND sex NOT IN ('0', '1', '-1')");
-                }
+                // -2 表示无图片：只查询性别为空或NULL的记录（不包含未知）
+                sql.append(" AND (sex = '' OR sex IS NULL)");
             } else {
                 String sexValue = convertSexValue(taskType, sex);
                 sql.append(" AND sex = '").append(sexValue).append("'");

@@ -25,7 +25,7 @@ public class QueryTaskReqDTO {
     @ApiModelProperty(value = "最大年龄", example = "35")
     private Integer maxAge;
 
-    @ApiModelProperty(value = "性别：0=女，1=男，-1=未知，-2=无图片（排除0/1/-1，查询其他性别值）", example = "0")
+    @ApiModelProperty(value = "性别：0=女，1=男，-1=未知，-2=无图片（只查询性别为空或NULL的记录，不包含未知）", example = "0")
     private Integer sex;
 
     @ApiModelProperty(value = "排除的肤色：0=黄种人，1=棕种人，2=黑种人，3=白种人（输入2表示不要黑种人的数据）", example = "2")
