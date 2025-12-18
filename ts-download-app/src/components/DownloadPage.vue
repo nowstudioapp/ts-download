@@ -422,7 +422,7 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="排除肤色">
-                  <el-select v-model="mergeForm.excludeSkin" placeholder="可选" clearable>
+                  <el-select v-model="mergeForm.excludeSkin" placeholder="可选（支持多选）" clearable multiple collapse-tags>
                     <el-option label="排除黄色皮肤" :value="0" />
                     <el-option label="排除棕色皮肤" :value="1" />
                     <el-option label="排除黑色皮肤" :value="2" />
@@ -432,7 +432,7 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="指定肤色">
-                  <el-select v-model="mergeForm.includeSkin" placeholder="可选（用于TG头像/WS性别）" clearable>
+                  <el-select v-model="mergeForm.includeSkin" placeholder="可选（支持多选，用于TG头像/WS性别）" clearable multiple collapse-tags>
                     <el-option label="黄色皮肤" :value="0" />
                     <el-option label="棕色皮肤" :value="1" />
                     <el-option label="黑色皮肤" :value="2" />
@@ -624,7 +624,7 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="排除肤色">
-                  <el-select v-model="countForm.excludeSkin" placeholder="可选" clearable>
+                  <el-select v-model="countForm.excludeSkin" placeholder="可选（支持多选）" clearable multiple collapse-tags>
                     <el-option label="排除黄色皮肤" :value="0" />
                     <el-option label="排除棕色皮肤" :value="1" />
                     <el-option label="排除黑色皮肤" :value="2" />
@@ -634,7 +634,7 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="指定肤色">
-                  <el-select v-model="countForm.includeSkin" placeholder="可选（用于TG头像/WS性别）" clearable>
+                  <el-select v-model="countForm.includeSkin" placeholder="可选（支持多选，用于TG头像/WS性别）" clearable multiple collapse-tags>
                     <el-option label="黄色皮肤" :value="0" />
                     <el-option label="棕色皮肤" :value="1" />
                     <el-option label="黑色皮肤" :value="2" />
@@ -726,8 +726,8 @@ const mergeForm = reactive({
   minAge: null,
   maxAge: null,
   sex: null,
-  excludeSkin: null,
-  includeSkin: null,
+  excludeSkin: [],
+  includeSkin: [],
   checkUserNameEmpty: null
 })
 
@@ -753,8 +753,8 @@ const countForm = reactive({
   minAge: null,
   maxAge: null,
   sex: null,
-  excludeSkin: null,
-  includeSkin: null,
+  excludeSkin: [],
+  includeSkin: [],
   checkUserNameEmpty: null
 })
 
@@ -898,11 +898,13 @@ const handleMergeDownload = async () => {
   mergeResult.value = null
   
   try {
-    // 过滤掉空值，但保留数字0
+    // 过滤掉空值，但保留数字0和空数组
     const requestData = Object.fromEntries(
       Object.entries(mergeForm).filter(([key, value]) => {
         // 数字类型（包括0）保留
         if (typeof value === 'number') return true
+        // 数组类型：只保留非空数组
+        if (Array.isArray(value)) return value.length > 0
         // 其他类型过滤掉null、undefined、空字符串
         return value !== null && value !== undefined && value !== ''
       })
@@ -954,7 +956,11 @@ const handleBatchDownload = async () => {
       
       const requestData = {
         ...Object.fromEntries(
-          Object.entries(mergeForm).filter(([_, value]) => value !== null && value !== undefined && value !== '')
+          Object.entries(mergeForm).filter(([_, value]) => {
+            if (typeof value === 'number') return true
+            if (Array.isArray(value)) return value.length > 0
+            return value !== null && value !== undefined && value !== ''
+          })
         ),
         skip: skip,
         limit: batchSize
@@ -1002,9 +1008,13 @@ const handleQueryCount = async () => {
   countResult.value = null
   
   try {
-    // 过滤掉空值
+    // 过滤掉空值，但保留数字0和非空数组
     const requestData = Object.fromEntries(
-      Object.entries(countForm).filter(([_, value]) => value !== null && value !== undefined && value !== '')
+      Object.entries(countForm).filter(([_, value]) => {
+        if (typeof value === 'number') return true
+        if (Array.isArray(value)) return value.length > 0
+        return value !== null && value !== undefined && value !== ''
+      })
     )
     
     const result = await apiCall('/api/download/queryTaskCount', requestData)
@@ -1062,8 +1072,8 @@ const resetMergeForm = () => {
   mergeForm.minAge = null
   mergeForm.maxAge = null
   mergeForm.sex = null
-  mergeForm.excludeSkin = null
-  mergeForm.includeSkin = null
+  mergeForm.excludeSkin = []
+  mergeForm.includeSkin = []
   mergeForm.checkUserNameEmpty = null
   mergeResult.value = null
   batchProgress.show = false
@@ -1075,8 +1085,8 @@ const resetCountForm = () => {
   countForm.minAge = null
   countForm.maxAge = null
   countForm.sex = null
-  countForm.excludeSkin = null
-  countForm.includeSkin = null
+  countForm.excludeSkin = []
+  countForm.includeSkin = []
   countForm.checkUserNameEmpty = null
   countResult.value = null
 }
