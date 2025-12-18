@@ -686,7 +686,7 @@ public class DownloadServiceImpl implements DownloadService {
      */
     private List<TsWsTaskRecord> queryDataWithBatch(String taskType, String countryCode, 
                                                     Integer minAge, Integer maxAge, Integer sex, 
-                                                    Integer excludeSkin, Integer includeSkin, Integer checkUserNameEmpty,
+                                                    List<Integer> excludeSkin, List<Integer> includeSkin, Integer checkUserNameEmpty,
                                                     Integer skip, Integer totalLimit) {
         final int BATCH_SIZE = 10000; // 每批1万条
         List<TsWsTaskRecord> allRecords = new ArrayList<>();

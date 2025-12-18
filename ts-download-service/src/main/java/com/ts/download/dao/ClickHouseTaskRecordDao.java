@@ -185,8 +185,8 @@ public class ClickHouseTaskRecordDao {
      */
     public List<TsWsTaskRecord> selectTaskRecordListWithConditionsAndSkip(String taskType, String countryCode, 
                                                                            Integer minAge, Integer maxAge, 
-                                                                           Integer sex, Integer excludeSkin, 
-                                                                           Integer includeSkin,
+                                                                           Integer sex, List<Integer> excludeSkin, 
+                                                                           List<Integer> includeSkin,
                                                                            Integer checkUserNameEmpty,
                                                                            Integer skip, Integer limit) {
         String tableName = getTableName(taskType, countryCode);
@@ -279,8 +279,8 @@ public class ClickHouseTaskRecordDao {
      */
     public List<TsWsTaskRecord> selectTaskRecordListWithConditionsByTime(String taskType, String countryCode, 
                                                                            Integer minAge, Integer maxAge, 
-                                                                           Integer sex, Integer excludeSkin, 
-                                                                           Integer includeSkin,
+                                                                           Integer sex, List<Integer> excludeSkin, 
+                                                                           List<Integer> includeSkin,
                                                                            Integer checkUserNameEmpty,
                                                                            String lastCreateTime, Integer limit) {
         String tableName = getTableName(taskType, countryCode);
@@ -417,8 +417,8 @@ public class ClickHouseTaskRecordDao {
      */
     public Long countRecordsWithConditions(String taskType, String countryCode, 
                                            Integer minAge, Integer maxAge, 
-                                           Integer sex, Integer excludeSkin,
-                                           Integer includeSkin,
+                                           Integer sex, List<Integer> excludeSkin,
+                                           List<Integer> includeSkin,
                                            Integer checkUserNameEmpty) {
         String tableName = getTableName(taskType, countryCode);
         
@@ -545,8 +545,8 @@ public class ClickHouseTaskRecordDao {
      */
     public void streamPhoneNumbers(String taskType, String countryCode,
                                    Integer minAge, Integer maxAge,
-                                   Integer sex, Integer excludeSkin,
-                                   Integer includeSkin,
+                                   Integer sex, List<Integer> excludeSkin,
+                                   List<Integer> includeSkin,
                                    Integer checkUserNameEmpty,
                                    Integer skip, Integer limit,
                                    java.util.function.Consumer<List<String>> callback,
@@ -666,38 +666,51 @@ public class ClickHouseTaskRecordDao {
     }
 
     /**
-     * 转换肤色值（某些任务类型的skin字段存储的是中文）
+     * 转换肤色参数为存储值（TG类任务用中文，其他任务用数字）
      * @param taskType 任务类型
-     * @param skin 肤色参数（0=黄种人, 1=棕种人, 2=黑种人, 3=白种人）
+     * @param skins 肤色参数列表（0=黄种人, 1=棕种人, 2=黑种人, 3=白种人）
      * @return 转换后的肤色值数组（sieveAvatar的黑种人需要兼容"黑种人"和"black"）
      */
-    private String[] convertSkinValues(String taskType, Integer skin) {
-        if (skin == null) {
+    private String[] convertSkinValues(String taskType, List<Integer> skins) {
+        if (skins == null || skins.isEmpty()) {
             return null;
         }
         
-        // TG类任务（sieveAvatar、tgEffective、sieveLive）的skin字段存储的是中文
-        if (taskType != null && (taskType.equals("sieveAvatar") || taskType.equals("tgEffective") || taskType.equals("sieveLive"))) {
-            switch (skin) {
-                case 0:
-                    return new String[]{"黄种人"};
-                case 1:
-                    return new String[]{"棕种人"};
-                case 2:
-                    // sieveAvatar的黑种人需要兼容"黑种人"和"black"两种存储格式
-                    if ("sieveAvatar".equals(taskType)) {
-                        return new String[]{"黑种人", "black"};
-                    }
-                    return new String[]{"黑种人"};
-                case 3:
-                    return new String[]{"白种人"};
-                default:
-                    return new String[]{skin.toString()};
+        List<String> result = new ArrayList<>();
+        
+        for (Integer skin : skins) {
+            // TG类任务（sieveAvatar、tgEffective、sieveLive）的skin字段存储的是中文
+            if (taskType != null && (taskType.equals("sieveAvatar") || taskType.equals("tgEffective") || taskType.equals("sieveLive"))) {
+                switch (skin) {
+                    case 0:
+                        result.add("黄种人");
+                        break;
+                    case 1:
+                        result.add("棕种人");
+                        break;
+                    case 2:
+                        // sieveAvatar的黑种人需要兼容"黑种人"和"black"两种存储格式
+                        if ("sieveAvatar".equals(taskType)) {
+                            result.add("黑种人");
+                            result.add("black");
+                        } else {
+                            result.add("黑种人");
+                        }
+                        break;
+                    case 3:
+                        result.add("白种人");
+                        break;
+                    default:
+                        result.add(skin.toString());
+                        break;
+                }
+            } else {
+                // 其他任务类型直接返回数字字符串
+                result.add(skin.toString());
             }
         }
         
-        // 其他任务类型直接返回数字字符串
-        return new String[]{skin.toString()};
+        return result.toArray(new String[0]);
     }
 
     /**
@@ -713,8 +726,8 @@ public class ClickHouseTaskRecordDao {
     /**
      * 生成肤色包含条件SQL（TG用ethnicity，WS用skin）
      */
-    private String buildSkinIncludeCondition(String taskType, Integer skin) {
-        String[] values = convertSkinValues(taskType, skin);
+    private String buildSkinIncludeCondition(String taskType, List<Integer> skins) {
+        String[] values = convertSkinValues(taskType, skins);
         if (values == null || values.length == 0) {
             return "";
         }
@@ -735,8 +748,8 @@ public class ClickHouseTaskRecordDao {
     /**
      * 生成肤色排除条件SQL（TG用ethnicity，WS用skin）
      */
-    private String buildSkinExcludeCondition(String taskType, Integer skin) {
-        String[] values = convertSkinValues(taskType, skin);
+    private String buildSkinExcludeCondition(String taskType, List<Integer> skins) {
+        String[] values = convertSkinValues(taskType, skins);
         if (values == null || values.length == 0) {
             return "";
         }
