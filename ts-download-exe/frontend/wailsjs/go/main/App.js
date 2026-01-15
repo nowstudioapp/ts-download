@@ -42,6 +42,10 @@ export function ProcessTxtFiles(arg1) {
   return window['go']['main']['App']['ProcessTxtFiles'](arg1);
 }
 
+export function RemoveChineseRows(arg1) {
+  return window['go']['main']['App']['RemoveChineseRows'](arg1);
+}
+
 export function SelectExcelFile() {
   return window['go']['main']['App']['SelectExcelFile']();
 }

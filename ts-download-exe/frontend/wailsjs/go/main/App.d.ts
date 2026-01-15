@@ -22,6 +22,8 @@ export function ProcessAgeColumn(arg1:main.AgeProcessConfig):Promise<main.AgePro
 
 export function ProcessTxtFiles(arg1:main.TxtProcessConfig):Promise<main.TxtProcessResult>;
 
+export function RemoveChineseRows(arg1:main.ChineseRemoveConfig):Promise<main.ChineseRemoveResult>;
+
 export function SelectExcelFile():Promise<string>;
 
 export function SelectExcelFiles():Promise<Array<string>>;

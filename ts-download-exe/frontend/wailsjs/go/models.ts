@@ -112,6 +112,44 @@ export namespace main {
 	        this.splitResults = source["splitResults"];
 	    }
 	}
+	export class ChineseRemoveConfig {
+	    excelFile: string;
+	    outputPath: string;
+	    checkedColumns: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ChineseRemoveConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.excelFile = source["excelFile"];
+	        this.outputPath = source["outputPath"];
+	        this.checkedColumns = source["checkedColumns"];
+	    }
+	}
+	export class ChineseRemoveResult {
+	    success: boolean;
+	    message: string;
+	    outputPath: string;
+	    rowsProcessed: number;
+	    rowsRemoved: number;
+	    rowsKept: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChineseRemoveResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.message = source["message"];
+	        this.outputPath = source["outputPath"];
+	        this.rowsProcessed = source["rowsProcessed"];
+	        this.rowsRemoved = source["rowsRemoved"];
+	        this.rowsKept = source["rowsKept"];
+	    }
+	}
 	export class CountryOption {
 	    code: string;
 	    name: string;

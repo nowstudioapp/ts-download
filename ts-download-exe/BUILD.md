@@ -20,7 +20,7 @@ build/bin/TS-Merge-1.0.0-amd64-installer.exe
 
 ## 开发模式
 ```powershell
-wails dev
+wails dev`
 ```
 
 

@@ -2167,3 +2167,189 @@ func saveExcelFile(filePath string, headers []string, rows [][]string) error {
 
 	return newFile.SaveAs(filePath)
 }
+
+// ChineseRemoveConfig 中文删除配置
+type ChineseRemoveConfig struct {
+	ExcelFile      string   `json:"excelFile"`
+	OutputPath     string   `json:"outputPath"`
+	CheckedColumns []string `json:"checkedColumns"` // 要检查中文的列名列表
+}
+
+// ChineseRemoveResult 中文删除结果
+type ChineseRemoveResult struct {
+	Success       bool   `json:"success"`
+	Message       string `json:"message"`
+	OutputPath    string `json:"outputPath"`
+	RowsProcessed int    `json:"rowsProcessed"`
+	RowsRemoved   int    `json:"rowsRemoved"`
+	RowsKept      int    `json:"rowsKept"`
+}
+
+// RemoveChineseRows 删除包含中文的行
+func (a *App) RemoveChineseRows(config ChineseRemoveConfig) ChineseRemoveResult {
+	// 验证输入参数
+	if config.ExcelFile == "" || config.OutputPath == "" {
+		return ChineseRemoveResult{
+			Success: false,
+			Message: "请完善所有必填项",
+		}
+	}
+
+	// 处理Excel文件路径
+	excelPath := findActualPath(config.ExcelFile)
+	if excelPath == "" {
+		return ChineseRemoveResult{
+			Success: false,
+			Message: fmt.Sprintf("找不到Excel文件: %s", config.ExcelFile),
+		}
+	}
+
+	// 打开Excel文件
+	f, err := excelize.OpenFile(excelPath)
+	if err != nil {
+		return ChineseRemoveResult{
+			Success: false,
+			Message: fmt.Sprintf("打开Excel文件失败: %v", err),
+		}
+	}
+	defer f.Close()
+
+	// 获取第一个工作表
+	sheets := f.GetSheetList()
+	if len(sheets) == 0 {
+		return ChineseRemoveResult{
+			Success: false,
+			Message: "Excel文件为空",
+		}
+	}
+
+	// 读取所有行
+	rows, err := f.GetRows(sheets[0])
+	if err != nil {
+		return ChineseRemoveResult{
+			Success: false,
+			Message: fmt.Sprintf("读取工作表失败: %v", err),
+		}
+	}
+
+	if len(rows) == 0 {
+		return ChineseRemoveResult{
+			Success: false,
+			Message: "工作表没有数据",
+		}
+	}
+
+	// 保留表头
+	headers := rows[0]
+	var filteredRows [][]string
+	filteredRows = append(filteredRows, headers)
+
+	// 构建列名到索引的映射
+	columnIndexMap := make(map[string]int)
+	for i, header := range headers {
+		columnIndexMap[strings.TrimSpace(header)] = i
+	}
+
+	// 找到需要检查的列的索引
+	var checkColumnIndexes []int
+	checkAllColumns := len(config.CheckedColumns) == 0 // 如果没有指定列，则检查所有列
+
+	if checkAllColumns {
+		// 检查所有列
+		for i := range headers {
+			checkColumnIndexes = append(checkColumnIndexes, i)
+		}
+		fmt.Printf("将检查所有列的中文\n")
+	} else {
+		// 只检查指定的列
+		for _, colName := range config.CheckedColumns {
+			if idx, exists := columnIndexMap[strings.TrimSpace(colName)]; exists {
+				checkColumnIndexes = append(checkColumnIndexes, idx)
+			}
+		}
+
+		if len(checkColumnIndexes) == 0 {
+			return ChineseRemoveResult{
+				Success: false,
+				Message: "所选列在Excel文件中未找到",
+			}
+		}
+
+		fmt.Printf("将检查以下列的中文: %v\n", config.CheckedColumns)
+	}
+
+	rowsProcessed := len(rows) - 1 // 不包括表头
+	rowsRemoved := 0
+
+	// 处理数据行
+	for i := 1; i < len(rows); i++ {
+		row := rows[i]
+		hasChinese := false
+
+		// 只检查选中的列是否包含中文
+		for _, colIndex := range checkColumnIndexes {
+			if colIndex < len(row) {
+				if containsChinese(row[colIndex]) {
+					hasChinese = true
+					break
+				}
+			}
+		}
+
+		// 如果选中的列不包含中文，保留该行
+		if !hasChinese {
+			filteredRows = append(filteredRows, row)
+		} else {
+			rowsRemoved++
+		}
+
+		// 显示处理进度
+		if i%1000 == 0 {
+			fmt.Printf("已处理 %d/%d 行 (%.1f%%)\n", i, rowsProcessed, float64(i)/float64(rowsProcessed)*100)
+		}
+	}
+
+	rowsKept := len(filteredRows) - 1 // 不包括表头
+
+	fmt.Printf("处理完成: 总行数=%d, 删除行数=%d, 保留行数=%d\n", rowsProcessed, rowsRemoved, rowsKept)
+
+	// 创建新的Excel文件
+	newFile := excelize.NewFile()
+	defer newFile.Close()
+
+	// 写入过滤后的数据
+	for i, row := range filteredRows {
+		for j, cellValue := range row {
+			cell := getCellName(j+1, i+1)
+			newFile.SetCellValue("Sheet1", cell, cellValue)
+		}
+	}
+
+	// 保存文件
+	if err := newFile.SaveAs(config.OutputPath); err != nil {
+		return ChineseRemoveResult{
+			Success: false,
+			Message: fmt.Sprintf("保存文件失败: %v", err),
+		}
+	}
+
+	return ChineseRemoveResult{
+		Success:       true,
+		Message:       "中文行删除完成！",
+		OutputPath:    config.OutputPath,
+		RowsProcessed: rowsProcessed,
+		RowsRemoved:   rowsRemoved,
+		RowsKept:      rowsKept,
+	}
+}
+
+// containsChinese 检查字符串是否包含中文字符
+func containsChinese(s string) bool {
+	for _, r := range s {
+		// 判断是否为中文字符（Unicode范围：\u4e00-\u9fff）
+		if r >= 0x4e00 && r <= 0x9fff {
+			return true
+		}
+	}
+	return false
+}
