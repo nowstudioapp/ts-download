@@ -58,9 +58,9 @@ public class DownloadController {
     @PostMapping("/mergeDownload")
     @ApiOperation("合并两个任务类型下载（根据phone匹配，支持跳过指定数量实现分批下载）")
     public R<String> mergeDownload(@RequestBody MergeDownloadReqDTO reqDTO) {
-        log.info("=== 接收到合并下载请求 ===，firstTaskType={}, secondTaskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, skip={}",
+        log.info("=== 接收到合并下载请求 ===，firstTaskType={}, secondTaskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, activeDay={}, skip={}",
                 reqDTO.getFirstTaskType(), reqDTO.getSecondTaskType(), reqDTO.getCountryCode(), 
-                reqDTO.getMinAge(), reqDTO.getMaxAge(), reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getSkip());
+                reqDTO.getMinAge(), reqDTO.getMaxAge(), reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getActiveDay(), reqDTO.getSkip());
         
         try {
             String downloadUrl = downloadService.generateMergeDownloadUrl(reqDTO);
@@ -74,9 +74,9 @@ public class DownloadController {
     @PostMapping("/queryTaskCount")
     @ApiOperation("查询任务记录数量（支持条件筛选）")
     public R<Object> queryTaskCount(@RequestBody QueryTaskReqDTO reqDTO) {
-        log.info("=== 接收到任务查询请求 ===，taskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, checkUserNameEmpty={}",
+        log.info("=== 接收到任务查询请求 ===，taskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, checkUserNameEmpty={}, activeDay={}",
                 reqDTO.getTaskType(), reqDTO.getCountryCode(), reqDTO.getMinAge(), reqDTO.getMaxAge(), 
-                reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty());
+                reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty(), reqDTO.getActiveDay());
         
         try {
             Object result = downloadService.queryTaskCount(reqDTO);

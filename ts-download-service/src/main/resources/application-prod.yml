@@ -62,7 +62,7 @@ local:
     # 生产环境文件路径
     base-path: /home/www/file
     # 开发环境域名
-    server-domain: https://testqaz.tsshailiao008.xyz
+    server-domain: https://testqaz.tg-forge.com
     # 文件访问路径前缀
     access-prefix: /files
     # 生产环境启用本地存储

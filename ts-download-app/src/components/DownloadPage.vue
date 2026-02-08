@@ -442,6 +442,24 @@
               </el-col>
             </el-row>
             
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="有效天数">
+                  <el-input-number 
+                    v-model="mergeForm.activeDay" 
+                    :min="0" 
+                    :max="9999"
+                    :value-on-clear="null"
+                    placeholder="可选，用于TG活跃/TG性别筛选"
+                    style="width: 100%"
+                  />
+                  <div class="form-item-tip">
+                    不填则不筛选，填N表示筛选active_day在0~N范围内，主要用于TG活跃筛选、TG性别筛选
+                  </div>
+                </el-form-item>
+              </el-col>
+            </el-row>
+            
             <el-form-item>
               <el-button @click="resetMergeForm">重置</el-button>
               <el-button 
@@ -653,6 +671,21 @@
                   </el-select>
                 </el-form-item>
               </el-col>
+              <el-col :span="12">
+                <el-form-item label="有效天数">
+                  <el-input-number 
+                    v-model="countForm.activeDay" 
+                    :min="0" 
+                    :max="9999"
+                    :value-on-clear="null"
+                    placeholder="可选，用于TG活跃/TG性别筛选"
+                    style="width: 100%"
+                  />
+                  <div class="form-item-tip">
+                    不填则不筛选，填N表示筛选active_day在0~N范围内
+                  </div>
+                </el-form-item>
+              </el-col>
             </el-row>
             
             <el-form-item>
@@ -728,7 +761,8 @@ const mergeForm = reactive({
   sex: null,
   excludeSkin: [],
   includeSkin: [],
-  checkUserNameEmpty: null
+  checkUserNameEmpty: null,
+  activeDay: null
 })
 
 const mergeLoading = ref(false)
@@ -755,7 +789,8 @@ const countForm = reactive({
   sex: null,
   excludeSkin: [],
   includeSkin: [],
-  checkUserNameEmpty: null
+  checkUserNameEmpty: null,
+  activeDay: null
 })
 
 const countLoading = ref(false)
@@ -1075,6 +1110,7 @@ const resetMergeForm = () => {
   mergeForm.excludeSkin = []
   mergeForm.includeSkin = []
   mergeForm.checkUserNameEmpty = null
+  mergeForm.activeDay = null
   mergeResult.value = null
   batchProgress.show = false
 }
@@ -1088,6 +1124,7 @@ const resetCountForm = () => {
   countForm.excludeSkin = []
   countForm.includeSkin = []
   countForm.checkUserNameEmpty = null
+  countForm.activeDay = null
   countResult.value = null
 }
 </script>

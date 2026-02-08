@@ -188,11 +188,12 @@ public class ClickHouseTaskRecordDao {
                                                                            Integer sex, List<Integer> excludeSkin, 
                                                                            List<Integer> includeSkin,
                                                                            Integer checkUserNameEmpty,
+                                                                           Integer activeDay,
                                                                            Integer skip, Integer limit) {
         String tableName = getTableName(taskType, countryCode);
         log.info("=== ClickHouse条件查询（支持skip） ===");
-        log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, includeSkin: {}, skip: {}, limit: {}", 
-                taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, includeSkin, skip, limit);
+        log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, includeSkin: {}, activeDay: {}, skip: {}, limit: {}", 
+                taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, includeSkin, activeDay, skip, limit);
 
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM ").append(tableName);
@@ -239,6 +240,11 @@ public class ClickHouseTaskRecordDao {
             }
         }
         
+        // 添加有效天数条件（传N表示筛选active_day在0~N范围内）
+        if (activeDay != null && activeDay >= 0) {
+            sql.append(" AND active_day >= 0 AND active_day <= ").append(activeDay);
+        }
+        
         // 按create_time降序排序，优先获取最新数据
         sql.append(" ORDER BY create_time DESC");
         
@@ -282,11 +288,12 @@ public class ClickHouseTaskRecordDao {
                                                                            Integer sex, List<Integer> excludeSkin, 
                                                                            List<Integer> includeSkin,
                                                                            Integer checkUserNameEmpty,
+                                                                           Integer activeDay,
                                                                            String lastCreateTime, Integer limit) {
         String tableName = getTableName(taskType, countryCode);
         log.info("=== ClickHouse条件查询（按时间，包含pic字段） ===");
-        log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, includeSkin: {}, lastCreateTime: {}, limit: {}", 
-                taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, includeSkin, lastCreateTime, limit);
+        log.info("taskType: {}, countryCode: {}, 表名: {}, minAge: {}, maxAge: {}, sex: {}, excludeSkin: {}, includeSkin: {}, activeDay: {}, lastCreateTime: {}, limit: {}", 
+                taskType, countryCode, tableName, minAge, maxAge, sex, excludeSkin, includeSkin, activeDay, lastCreateTime, limit);
 
         StringBuilder sql = new StringBuilder();
         // 包含pic字段（合并下载需要头像列）
@@ -335,6 +342,11 @@ public class ClickHouseTaskRecordDao {
                 // 查询user_name不为空的
                 sql.append(" AND user_name != '' AND user_name IS NOT NULL");
             }
+        }
+        
+        // 添加有效天数条件（传N表示筛选active_day在0~N范围内）
+        if (activeDay != null && activeDay >= 0) {
+            sql.append(" AND active_day >= 0 AND active_day <= ").append(activeDay);
         }
         
         // 使用lastCreateTime代替OFFSET（按时间分页）
@@ -419,7 +431,8 @@ public class ClickHouseTaskRecordDao {
                                            Integer minAge, Integer maxAge, 
                                            Integer sex, List<Integer> excludeSkin,
                                            List<Integer> includeSkin,
-                                           Integer checkUserNameEmpty) {
+                                           Integer checkUserNameEmpty,
+                                           Integer activeDay) {
         String tableName = getTableName(taskType, countryCode);
         
         StringBuilder sql = new StringBuilder();
@@ -465,6 +478,11 @@ public class ClickHouseTaskRecordDao {
                 // 查询user_name不为空的
                 sql.append(" AND user_name != '' AND user_name IS NOT NULL");
             }
+        }
+        
+        // 添加有效天数条件（传N表示筛选active_day在0~N范围内）
+        if (activeDay != null && activeDay >= 0) {
+            sql.append(" AND active_day >= 0 AND active_day <= ").append(activeDay);
         }
 
         log.info("统计SQL: {}", sql.toString());
@@ -548,12 +566,13 @@ public class ClickHouseTaskRecordDao {
                                    Integer sex, List<Integer> excludeSkin,
                                    List<Integer> includeSkin,
                                    Integer checkUserNameEmpty,
+                                   Integer activeDay,
                                    Integer skip, Integer limit,
                                    java.util.function.Consumer<List<String>> callback,
                                    int batchSize) {
         String tableName = getTableName(taskType, countryCode);
         log.info("=== ClickHouse流式查询手机号 ===");
-        log.info("taskType: {}, countryCode: {}, 表名: {}", taskType, countryCode, tableName);
+        log.info("taskType: {}, countryCode: {}, 表名: {}, activeDay: {}", taskType, countryCode, tableName, activeDay);
 
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT DISTINCT phone FROM ").append(tableName);
@@ -596,6 +615,11 @@ public class ClickHouseTaskRecordDao {
             } else if (checkUserNameEmpty == 1) {
                 sql.append(" AND user_name != '' AND user_name IS NOT NULL");
             }
+        }
+        
+        // 添加有效天数条件（传N表示筛选active_day在0~N范围内）
+        if (activeDay != null && activeDay >= 0) {
+            sql.append(" AND active_day >= 0 AND active_day <= ").append(activeDay);
         }
         
         sql.append(" ORDER BY phone");

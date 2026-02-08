@@ -45,6 +45,9 @@ public class MergeDownloadReqDTO {
     @ApiModelProperty(value = "检查user_name是否为空：0=查询user_name为空的，1=查询user_name不为空的，不传则不限制", example = "0")
     private Integer checkUserNameEmpty;
 
+    @ApiModelProperty(value = "有效天数（主要用于TG活跃筛选、TG性别筛选，筛选active_day在0~该值范围内的记录，例如传3表示筛选active_day在0-3之间的）", example = "3")
+    private Integer activeDay;
+
     @ApiModelProperty(value = "跳过记录数量（用于分批下载，不传或0表示从头开始）", example = "100000")
     private Integer skip;
 
