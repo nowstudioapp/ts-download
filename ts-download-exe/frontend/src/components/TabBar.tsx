@@ -23,7 +23,7 @@ const tabs: Tab[] = [
   { id: 'phone-splitter', label: '号码拆分', icon: '📱' },
   { id: 'txt-interleaver', label: '文本打散', icon: '🔀' },
   { id: 'area-code-splitter', label: '区号拆分', icon: '🌍' },
-  { id: 'chinese-remover', label: '中文处理', icon: '🈳' }
+  { id: 'chinese-remover', label: '中英文处理', icon: '🈳' }
 ];
 
 const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {

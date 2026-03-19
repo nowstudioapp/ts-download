@@ -6,6 +6,8 @@ export interface ChineseRemoveConfig {
   excelFile: string;
   outputPath: string;
   checkedColumns: string[];
+  charType: string;
+  action: string;
 }
 
 const ChineseRemover: React.FC = () => {
@@ -15,7 +17,9 @@ const ChineseRemover: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const [progress, setProgress] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [columnInput, setColumnInput] = useState<string>(''); // 用户输入的列名
+  const [columnInput, setColumnInput] = useState<string>('');
+  const [charType, setCharType] = useState<string>('chinese');
+  const [action, setAction] = useState<string>('remove');
 
   const addLog = (message: string) => {
     setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
@@ -54,13 +58,14 @@ const ChineseRemover: React.FC = () => {
 
     setIsProcessing(true);
     setProgress(0);
-    addLog('🚀 开始处理中文字符...');
+    const charTypeLabel: Record<string, string> = { chinese: '中文', english: '英文', both: '中文或英文' };
+    const actionLabel: Record<string, string> = { remove: '删除', keep: '保留' };
+    addLog(`🚀 开始处理... 模式: ${actionLabel[action]}包含${charTypeLabel[charType]}的行`);
 
     try {
       setProgress(20);
       addLog(`📊 正在读取Excel文件: ${excelFile.split('\\').pop()}`);
       
-      // 处理用户输入的列名
       const checkedColumns = columnInput.trim() 
         ? columnInput.split(',').map(col => col.trim()).filter(col => col !== '')
         : [];
@@ -71,12 +76,14 @@ const ChineseRemover: React.FC = () => {
       } else {
         addLog('🔍 检查所有列（除表头外）');
       }
-      addLog('🔍 正在扫描并删除包含中文的行...');
+      addLog(`🔍 正在扫描并${actionLabel[action]}包含${charTypeLabel[charType]}的行...`);
       
       const result = await RemoveChineseRows({
         excelFile,
         outputPath,
-        checkedColumns
+        checkedColumns,
+        charType,
+        action
       });
 
       setProgress(90);
@@ -138,8 +145,8 @@ const ChineseRemover: React.FC = () => {
   return (
     <div className="chinese-remover">
       <div className="remover-header">
-        <h2>🈳 中文处理</h2>
-        <p>删除Excel文件中包含中文字符的所有行（保留表头）</p>
+        <h2>🈳 中英文处理</h2>
+        <p>根据指定列是否包含中文/英文字符，保留或删除整行数据（标点符号不算，保留表头）</p>
       </div>
 
       <div className="remover-content">
@@ -177,12 +184,52 @@ const ChineseRemover: React.FC = () => {
             <div className="info-box">
               <p>📌 处理说明：</p>
               <ul>
+                <li>✓ 选择要检测的字符类型：中文、英文、或两者都检测</li>
+                <li>✓ 选择操作方式：保留或删除包含指定字符的行</li>
                 <li>✓ 输入要检查的列名（多个列名用逗号分隔）</li>
-                <li>✓ 例如：姓名,地址,备注</li>
-                <li>✓ 不输入则检查所有列（除表头外）</li>
-                <li>✓ 只删除指定列包含中文的行</li>
+                <li>✓ 不输入列名则检查所有列（除表头外）</li>
+                <li>✓ 标点符号不计入检测范围</li>
               </ul>
             </div>
+          </div>
+
+          {/* 字符类型选择 */}
+          <div className="option-group">
+            <label className="input-label">检测字符类型:</label>
+            <div className="radio-group">
+              <label className="radio-label">
+                <input type="radio" name="charType" value="chinese" checked={charType === 'chinese'} onChange={(e) => setCharType(e.target.value)} disabled={isProcessing} />
+                <span>中文</span>
+              </label>
+              <label className="radio-label">
+                <input type="radio" name="charType" value="english" checked={charType === 'english'} onChange={(e) => setCharType(e.target.value)} disabled={isProcessing} />
+                <span>英文</span>
+              </label>
+              <label className="radio-label">
+                <input type="radio" name="charType" value="both" checked={charType === 'both'} onChange={(e) => setCharType(e.target.value)} disabled={isProcessing} />
+                <span>中文或英文</span>
+              </label>
+            </div>
+          </div>
+
+          {/* 操作方式选择 */}
+          <div className="option-group">
+            <label className="input-label">操作方式:</label>
+            <div className="radio-group">
+              <label className="radio-label">
+                <input type="radio" name="action" value="remove" checked={action === 'remove'} onChange={(e) => setAction(e.target.value)} disabled={isProcessing} />
+                <span>删除匹配行</span>
+              </label>
+              <label className="radio-label">
+                <input type="radio" name="action" value="keep" checked={action === 'keep'} onChange={(e) => setAction(e.target.value)} disabled={isProcessing} />
+                <span>保留匹配行</span>
+              </label>
+            </div>
+            <p className="input-hint">
+              {action === 'remove'
+                ? `将删除指定列中包含${charType === 'chinese' ? '中文' : charType === 'english' ? '英文' : '中文或英文'}的整行数据`
+                : `将只保留指定列中包含${charType === 'chinese' ? '中文' : charType === 'english' ? '英文' : '中文或英文'}的整行数据`}
+            </p>
           </div>
 
           {/* 列名输入 */}
@@ -198,7 +245,7 @@ const ChineseRemover: React.FC = () => {
                 disabled={isProcessing}
               />
             </label>
-            <p className="input-hint">输入要检查中文的列名，多个列名用英文逗号分隔；留空则检查所有列</p>
+            <p className="input-hint">输入要检查的列名，多个列名用英文逗号分隔；留空则检查所有列</p>
           </div>
 
           <div className="option-group">

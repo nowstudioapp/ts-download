@@ -116,6 +116,8 @@ export namespace main {
 	    excelFile: string;
 	    outputPath: string;
 	    checkedColumns: string[];
+	    charType: string;
+	    action: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ChineseRemoveConfig(source);
@@ -126,6 +128,8 @@ export namespace main {
 	        this.excelFile = source["excelFile"];
 	        this.outputPath = source["outputPath"];
 	        this.checkedColumns = source["checkedColumns"];
+	        this.charType = source["charType"];
+	        this.action = source["action"];
 	    }
 	}
 	export class ChineseRemoveResult {
