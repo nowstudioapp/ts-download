@@ -32,19 +32,11 @@ spring:
     url: jdbc:clickhouse://localhost:8123/ts_backup?socket_timeout=600000&compress=true&decompress=true&use_server_time_zone=false&use_time_zone=Asia/Shanghai&rewriteBatchedStatements=true&max_insert_block_size=1000000&max_execution_time=0&max_memory_usage=10000000000
     username: ts_backup
     password: ts_backup_2026
-  # Redis配置（开发环境）
-  redis:
-    host: localhost
-    port: 6379
-    database: 0
-    timeout: 10000
-    lettuce:
-      pool:
-        max-active: 8
-        max-idle: 8
-        min-idle: 0
     druid:
-      # 开发环境连接池配置（较小）
+      url: ${spring.datasource.url}
+      username: ${spring.datasource.username}
+      password: ${spring.datasource.password}
+      driver-class-name: ${spring.datasource.driver-class-name}
       initial-size: 3
       min-idle: 3
       max-active: 20
@@ -58,7 +50,6 @@ spring:
       test-while-idle: true
       test-on-borrow: false
       test-on-return: false
-      # 开发环境启用监控
       stat-view-servlet:
         enabled: true
         url-pattern: /druid/*
@@ -66,6 +57,17 @@ spring:
         login-password: admin123
       web-stat-filter:
         enabled: true
+  # Redis配置（开发环境）
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+    timeout: 10000
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
 
 # 数据迁移配置（旧MySQL + 旧ClickHouse）
 migrate:
@@ -79,6 +81,7 @@ migrate:
     username: ts
     password: 6b52a53a13ab190c
   batch-size: 50000
+  parallel: 3
 
 # 本地文件存储配置（开发环境）
 local:

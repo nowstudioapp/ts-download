@@ -65,7 +65,7 @@ public class MigrateDataSourceConfig {
         ds.setPassword(oldCkPassword);
         ds.setInitialSize(0);
         ds.setMinIdle(0);
-        ds.setMaxActive(3);
+        ds.setMaxActive(5);
         ds.setMaxWait(30000);
         ds.setTestWhileIdle(true);
         ds.setValidationQuery("SELECT 1");

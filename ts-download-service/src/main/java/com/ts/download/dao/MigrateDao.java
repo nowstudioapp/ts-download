@@ -24,7 +24,8 @@ public class MigrateDao {
     private JdbcTemplate oldCkJdbc;
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    @Qualifier("migrateWriteJdbcTemplate")
+    private JdbcTemplate migrateWriteJdbc;
 
     private static final List<String> COLUMNS = Arrays.asList(
             "id", "phone", "sex", "age", "uid", "user_name",
@@ -51,7 +52,7 @@ public class MigrateDao {
      */
     public Set<String> loadMigratedTaskIds() {
         String sql = "SELECT task_id FROM migrate_log FINAL WHERE status = 'success'";
-        List<String> ids = jdbcTemplate.queryForList(sql, String.class);
+        List<String> ids = migrateWriteJdbc.queryForList(sql, String.class);
         return new HashSet<>(ids);
     }
 
@@ -60,7 +61,7 @@ public class MigrateDao {
      */
     public List<Map<String, Object>> loadFailedTasks() {
         String sql = "SELECT task_id, task_type, country_code FROM migrate_log FINAL WHERE status = 'failed'";
-        return jdbcTemplate.queryForList(sql);
+        return migrateWriteJdbc.queryForList(sql);
     }
 
     /**
@@ -73,25 +74,31 @@ public class MigrateDao {
     }
 
     /**
-     * 从旧 CK 一次性读取某个任务的全部数据（单任务最大百万行，无需分批）
+     * 从旧 CK 分批读取某个任务的数据（基于 id 游标分页，避免一次性加载到内存导致 OOM）
      */
-    public List<Map<String, Object>> fetchAllOldRecords(String oldTableName, String taskId) {
+    public List<Map<String, Object>> fetchOldRecordsBatch(String oldTableName, String taskId, String lastId, int batchSize) {
         String cols = String.join(", ", COLUMNS);
-        String sql = "SELECT " + cols + " FROM " + oldTableName + " WHERE task_id = ?";
-        return oldCkJdbc.queryForList(sql, taskId);
+        String sql;
+        if (lastId == null || lastId.isEmpty()) {
+            sql = "SELECT " + cols + " FROM " + oldTableName + " WHERE task_id = ? ORDER BY id ASC LIMIT " + batchSize;
+            return oldCkJdbc.queryForList(sql, taskId);
+        } else {
+            sql = "SELECT " + cols + " FROM " + oldTableName + " WHERE task_id = ? AND id > ? ORDER BY id ASC LIMIT " + batchSize;
+            return oldCkJdbc.queryForList(sql, taskId, lastId);
+        }
     }
 
+    private static final int WRITE_CHUNK_SIZE = 5000;
+
     /**
-     * 批量写入新 CK 表（分小批次提交，减少单次 SQL 大小）
+     * 写入一批数据到新 CK 表（自动按 5000 行拆分，避免单条 SQL 过大）
      */
-    public void batchInsertNewCk(String newTableName, List<Map<String, Object>> batch) {
+    public void insertChunk(String newTableName, List<Map<String, Object>> batch) {
         if (batch == null || batch.isEmpty()) return;
 
-        int chunkSize = 5000;
-        for (int start = 0; start < batch.size(); start += chunkSize) {
-            int end = Math.min(start + chunkSize, batch.size());
-            List<Map<String, Object>> chunk = batch.subList(start, end);
-            doInsertChunk(newTableName, chunk);
+        for (int start = 0; start < batch.size(); start += WRITE_CHUNK_SIZE) {
+            int end = Math.min(start + WRITE_CHUNK_SIZE, batch.size());
+            doInsertChunk(newTableName, batch.subList(start, end));
         }
     }
 
@@ -122,7 +129,7 @@ public class MigrateDao {
             }
         }
 
-        jdbcTemplate.update(sb.toString(), params);
+        migrateWriteJdbc.update(sb.toString(), params);
     }
 
     /**
@@ -132,7 +139,7 @@ public class MigrateDao {
                                 String targetTable, long rowCount, String status, String errorMsg) {
         String sql = "INSERT INTO migrate_log (task_id, task_type, country_code, target_table, row_count, status, error_msg, migrate_time) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, now())";
-        jdbcTemplate.update(sql, taskId, taskType, countryCode, targetTable, rowCount, status,
+        migrateWriteJdbc.update(sql, taskId, taskType, countryCode, targetTable, rowCount, status,
                 errorMsg != null ? errorMsg : "");
     }
 }

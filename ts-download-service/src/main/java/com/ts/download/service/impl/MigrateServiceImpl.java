@@ -4,11 +4,15 @@ import com.ts.download.dao.MigrateDao;
 import com.ts.download.service.MigrateService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
 @Service
@@ -19,8 +23,15 @@ public class MigrateServiceImpl implements MigrateService {
     @Autowired
     private MigrateDao migrateDao;
 
+    @Autowired
+    @Qualifier("taskExecutor")
+    private Executor taskExecutor;
+
     @Value("${migrate.batch-size:50000}")
     private int batchSize;
+
+    @Value("${migrate.parallel:3}")
+    private int parallelism;
 
     private static final Set<String> WS_TASK_TYPES = new HashSet<>(Arrays.asList(
             "gender", "whatsappExist", "wsValid", "wsExist"
@@ -103,44 +114,81 @@ public class MigrateServiceImpl implements MigrateService {
                 return;
             }
 
-            int success = 0, fail = 0;
-            long totalRows = 0;
+            int actualParallel = Math.min(parallelism, pendingTasks.size());
+            log.info("并行度: {}, 待迁移: {} 个任务", actualParallel, pendingTasks.size());
 
+            Semaphore semaphore = new Semaphore(actualParallel);
+            AtomicInteger success = new AtomicInteger(0);
+            AtomicInteger fail = new AtomicInteger(0);
+            AtomicLong totalRows = new AtomicLong(0);
+            CountDownLatch latch = new CountDownLatch(pendingTasks.size());
+
+            int submitted = 0;
             for (int i = 0; i < pendingTasks.size(); i++) {
                 Map<String, Object> task = pendingTasks.get(i);
                 String taskId = String.valueOf(task.get("task_id"));
                 String taskType = String.valueOf(task.get("task_type"));
                 String countryCode = String.valueOf(task.get("country_code"));
                 String newTable = getNewTableName(taskType);
-
-                log.info("[{}/{}] 迁移任务: {} | 类型: {} | 国家: {} | 目标: {}",
-                        i + 1, pendingTasks.size(), taskId, taskType, countryCode, newTable);
+                int index = i + 1;
+                int total = pendingTasks.size();
 
                 try {
-                    long rowCount = migrateOneTask(taskId, taskType, countryCode, newTable);
-                    migrateDao.writeMigrateLog(taskId, taskType, countryCode, newTable, rowCount, "success", "");
-                    success++;
-                    totalRows += rowCount;
-                    log.info("  -> 成功 | {} 行", rowCount);
-                } catch (Exception e) {
-                    String errMsg = e.getMessage();
-                    if (errMsg != null && errMsg.length() > 500) {
-                        errMsg = errMsg.substring(0, 500);
+                    semaphore.acquire();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.warn("迁移被中断，已提交 {}/{} 个任务", submitted, total);
+                    // 将未提交的任务全部 countDown，防止 latch.await 永久阻塞
+                    for (int j = i; j < pendingTasks.size(); j++) {
+                        latch.countDown();
                     }
-                    migrateDao.writeMigrateLog(taskId, taskType, countryCode, newTable, 0, "failed", errMsg);
-                    fail++;
-                    log.error("  -> 失败: {}", errMsg);
+                    break;
                 }
+
+                submitted++;
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        log.info("[{}/{}] 迁移任务: {} | 类型: {} | 国家: {} | 目标: {}",
+                                index, total, taskId, taskType, countryCode, newTable);
+
+                        long rowCount = migrateOneTask(taskId, taskType, countryCode, newTable);
+                        migrateDao.writeMigrateLog(taskId, taskType, countryCode, newTable, rowCount, "success", "");
+                        success.incrementAndGet();
+                        totalRows.addAndGet(rowCount);
+                        log.info("[{}/{}] -> 成功 | {} | {} 行", index, total, taskId, rowCount);
+                    } catch (Exception e) {
+                        String errMsg = e.getMessage();
+                        if (errMsg != null && errMsg.length() > 500) {
+                            errMsg = errMsg.substring(0, 500);
+                        }
+                        migrateDao.writeMigrateLog(taskId, taskType, countryCode, newTable, 0, "failed", errMsg);
+                        fail.incrementAndGet();
+                        log.error("[{}/{}] -> 失败 | {} | {}", index, total, taskId, errMsg);
+                    } finally {
+                        semaphore.release();
+                        latch.countDown();
+                    }
+                }, taskExecutor);
+            }
+
+            try {
+                latch.await(2, TimeUnit.HOURS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("等待迁移完成被中断");
             }
 
             long elapsed = System.currentTimeMillis() - startTime;
             log.info("========== 增量迁移完成 ==========");
-            log.info("  成功: {} | 失败: {} | 总行数: {} | 耗时: {}ms", success, fail, totalRows, elapsed);
+            log.info("  成功: {} | 失败: {} | 总行数: {} | 耗时: {}ms",
+                    success.get(), fail.get(), totalRows.get(), elapsed);
 
         } catch (Exception e) {
             log.error("增量迁移异常", e);
         }
     }
+
+    private static final int READ_BATCH_SIZE = 50000;
 
     private long migrateOneTask(String taskId, String taskType, String countryCode, String newTable) {
         String oldTable = getOldTableName(taskType, countryCode);
@@ -151,38 +199,61 @@ public class MigrateServiceImpl implements MigrateService {
             return 0;
         }
 
-        log.info("  旧表: {} -> 新表: {}, 共 {} 行, 一次性读取...", oldTable, newTable, totalRows);
+        log.info("  旧表: {} -> 新表: {}, 共 {} 行, 分批读写...", oldTable, newTable, totalRows);
 
-        long readStart = System.currentTimeMillis();
-        List<Map<String, Object>> rows = migrateDao.fetchAllOldRecords(oldTable, taskId);
-        log.info("  读取完成, {} 行, 耗时 {}ms", rows.size(), System.currentTimeMillis() - readStart);
+        long startTime = System.currentTimeMillis();
+        long totalWritten = 0;
+        int totalSkipped = 0;
+        String lastId = null;
+        int batchNum = 0;
 
-        List<Map<String, Object>> validBatch = new ArrayList<>(rows.size());
-        int skipped = 0;
-        for (Map<String, Object> row : rows) {
-            String phone = String.valueOf(row.getOrDefault("phone", ""));
-            if (!DIGITS_ONLY.matcher(phone).matches()) {
-                skipped++;
-                continue;
+        while (true) {
+            List<Map<String, Object>> rows = migrateDao.fetchOldRecordsBatch(oldTable, taskId, lastId, READ_BATCH_SIZE);
+            if (rows == null || rows.isEmpty()) {
+                break;
             }
-            cleanUintField(row, "age");
-            cleanUintField(row, "active_day");
-            cleanUintField(row, "business_number");
-            validBatch.add(row);
-        }
-        rows = null;
+            batchNum++;
 
-        if (skipped > 0) {
-            log.info("  跳过 {} 条无效 phone 记录", skipped);
+            lastId = String.valueOf(rows.get(rows.size() - 1).get("id"));
+
+            List<Map<String, Object>> validRows = new ArrayList<>(rows.size());
+            int skipped = 0;
+            for (Map<String, Object> row : rows) {
+                String phone = String.valueOf(row.getOrDefault("phone", ""));
+                if (!DIGITS_ONLY.matcher(phone).matches()) {
+                    skipped++;
+                    continue;
+                }
+                cleanUintField(row, "age");
+                cleanUintField(row, "active_day");
+                cleanUintField(row, "business_number");
+                validRows.add(row);
+            }
+            totalSkipped += skipped;
+
+            if (!validRows.isEmpty()) {
+                migrateDao.insertChunk(newTable, validRows);
+                totalWritten += validRows.size();
+            }
+
+            log.info("  批次 {} | 读取 {} 行, 写入 {} 行, 累计写入 {} 行",
+                    batchNum, rows.size(), validRows.size(), totalWritten);
+
+            boolean hasMore = rows.size() >= READ_BATCH_SIZE;
+            validRows = null;
+            rows = null;
+
+            if (!hasMore) {
+                break;
+            }
         }
 
-        if (!validBatch.isEmpty()) {
-            long writeStart = System.currentTimeMillis();
-            migrateDao.batchInsertNewCk(newTable, validBatch);
-            log.info("  写入完成, {} 行, 耗时 {}ms", validBatch.size(), System.currentTimeMillis() - writeStart);
+        if (totalSkipped > 0) {
+            log.info("  跳过 {} 条无效 phone 记录", totalSkipped);
         }
 
-        return validBatch.size();
+        log.info("  写入完成, 共 {} 行, {} 批次, 耗时 {}ms", totalWritten, batchNum, System.currentTimeMillis() - startTime);
+        return totalWritten;
     }
 
     private void cleanUintField(Map<String, Object> row, String field) {

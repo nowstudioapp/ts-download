@@ -11,7 +11,7 @@
       "sourceType": "com.ts.download.config.LocalFileProperties"
     },
     {
-      "name": "spring.datasource",
+      "name": "spring.datasource.druid",
       "type": "javax.sql.DataSource",
       "sourceType": "com.ts.download.config.ClickHouseConfig",
       "sourceMethod": "clickHouseDataSource()"

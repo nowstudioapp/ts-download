@@ -203,13 +203,15 @@ def migrate_task(old_ck, new_ck, task_id, task_type, country_code):
     return migrated
 
 
-def fetch_tasks(mysql_conn):
+def fetch_tasks(mysql_conn, hours=6):
     with mysql_conn.cursor() as cursor:
         cursor.execute(
             "SELECT task_id, task_type, country_code "
             "FROM ts_task "
             "WHERE task_status = 1 "
-            "ORDER BY create_time ASC"
+            "AND update_time >= DATE_SUB(NOW(), INTERVAL %s HOUR) "
+            "ORDER BY update_time ASC",
+            (hours,),
         )
         return cursor.fetchall()
 
@@ -330,11 +332,13 @@ def main():
     parser = argparse.ArgumentParser(description="ClickHouse 数据迁移脚本（多线程版）")
     parser.add_argument("--limit", type=int, default=0, help="只迁移前 N 个任务（测试用，0=全部）")
     parser.add_argument("--workers", type=int, default=8, help="并行线程数（默认 8）")
+    parser.add_argument("--hours", type=int, default=6, help="查询最近 N 小时内完成的任务（默认 6）")
     args = parser.parse_args()
 
     log.info("=" * 60)
-    log.info("ClickHouse 数据迁移开始")
-    log.info("  模式: %s", f"测试（限制 {args.limit} 个任务）" if args.limit > 0 else "全量")
+    log.info("ClickHouse 增量迁移开始")
+    log.info("  模式: %s", f"测试（限制 {args.limit} 个任务）" if args.limit > 0 else "增量")
+    log.info("  时间范围: 最近 %d 小时", args.hours)
     log.info("  线程数: %d", args.workers)
     log.info("  批次大小: %d", BATCH_SIZE)
     log.info("=" * 60)
@@ -348,10 +352,10 @@ def main():
     migrated_set = load_migrated_tasks(new_ck_main)
     log.info("已迁移任务数: %d", len(migrated_set))
 
-    log.info("从 MySQL 读取任务列表...")
-    tasks = fetch_tasks(mysql_conn)
+    log.info("从 MySQL 读取最近 %d 小时已完成的任务...", args.hours)
+    tasks = fetch_tasks(mysql_conn, args.hours)
     mysql_conn.close()
-    log.info("MySQL 中总任务数: %d", len(tasks))
+    log.info("最近 %d 小时已完成任务数: %d", args.hours, len(tasks))
 
     pending_tasks = [t for t in tasks if t["task_id"] not in migrated_set]
     skip_count = len(tasks) - len(pending_tasks)

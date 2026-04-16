@@ -19,7 +19,7 @@ public class MigrateJob {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
-    @Scheduled(cron = "0 0 * * * ?")
+    // @Scheduled(cron = "0 0 * * * ?")  // 已迁移到外部 Python 脚本定时执行
     public void scheduledMigrate() {
         if (!running.compareAndSet(false, true)) {
             log.warn("上一轮迁移尚未完成，跳过本次执行");
