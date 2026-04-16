@@ -73,47 +73,56 @@ public class MigrateDao {
     }
 
     /**
-     * 从旧 CK 分批读取数据
+     * 从旧 CK 一次性读取某个任务的全部数据（单任务最大百万行，无需分批）
      */
-    public List<Map<String, Object>> fetchOldRecordsBatch(String oldTableName, String taskId, int offset, int limit) {
+    public List<Map<String, Object>> fetchAllOldRecords(String oldTableName, String taskId) {
         String cols = String.join(", ", COLUMNS);
-        String sql = "SELECT " + cols + " FROM " + oldTableName +
-                " WHERE task_id = ? LIMIT " + limit + " OFFSET " + offset;
+        String sql = "SELECT " + cols + " FROM " + oldTableName + " WHERE task_id = ?";
         return oldCkJdbc.queryForList(sql, taskId);
     }
 
     /**
-     * 批量写入新 CK 表
+     * 批量写入新 CK 表（分小批次提交，减少单次 SQL 大小）
      */
     public void batchInsertNewCk(String newTableName, List<Map<String, Object>> batch) {
         if (batch == null || batch.isEmpty()) return;
 
+        int chunkSize = 5000;
+        for (int start = 0; start < batch.size(); start += chunkSize) {
+            int end = Math.min(start + chunkSize, batch.size());
+            List<Map<String, Object>> chunk = batch.subList(start, end);
+            doInsertChunk(newTableName, chunk);
+        }
+    }
+
+    private void doInsertChunk(String newTableName, List<Map<String, Object>> chunk) {
         String cols = String.join(", ", COLUMNS);
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(chunk.size() * 200);
         sb.append("INSERT INTO ").append(newTableName).append(" (").append(cols).append(") VALUES ");
 
-        List<Object> params = new ArrayList<>();
-        for (int i = 0; i < batch.size(); i++) {
+        Object[] params = new Object[chunk.size() * COLUMNS.size()];
+        int idx = 0;
+        for (int i = 0; i < chunk.size(); i++) {
             if (i > 0) sb.append(", ");
             sb.append("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            Map<String, Object> row = batch.get(i);
+            Map<String, Object> row = chunk.get(i);
             for (String col : COLUMNS) {
                 Object val = row.get(col);
                 if (val == null) {
                     if ("age".equals(col) || "active_day".equals(col) || "business_number".equals(col)) {
-                        params.add(0);
+                        params[idx++] = 0;
                     } else if ("last_online_time".equals(col) || "create_time".equals(col)) {
-                        params.add(new Timestamp(0));
+                        params[idx++] = new Timestamp(0);
                     } else {
-                        params.add("");
+                        params[idx++] = "";
                     }
                 } else {
-                    params.add(val);
+                    params[idx++] = val;
                 }
             }
         }
 
-        jdbcTemplate.update(sb.toString(), params.toArray());
+        jdbcTemplate.update(sb.toString(), params);
     }
 
     /**

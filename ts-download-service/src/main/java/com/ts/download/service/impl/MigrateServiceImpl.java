@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
@@ -33,6 +34,8 @@ public class MigrateServiceImpl implements MigrateService {
     private static final Set<String> OLD_TG_TASK_TYPES = new HashSet<>(Arrays.asList(
             "sieveLive", "sieveAvatar", "tgEffective"
     ));
+
+    private static final Pattern DIGITS_ONLY = Pattern.compile("\\d+");
 
     private String getOldTableName(String taskType, String countryCode) {
         if (OLD_WS_TASK_TYPES.contains(taskType)) {
@@ -148,43 +151,38 @@ public class MigrateServiceImpl implements MigrateService {
             return 0;
         }
 
-        log.info("  旧表: {} -> 新表: {}, 共 {} 行", oldTable, newTable, totalRows);
+        log.info("  旧表: {} -> 新表: {}, 共 {} 行, 一次性读取...", oldTable, newTable, totalRows);
 
-        long migrated = 0;
-        int offset = 0;
+        long readStart = System.currentTimeMillis();
+        List<Map<String, Object>> rows = migrateDao.fetchAllOldRecords(oldTable, taskId);
+        log.info("  读取完成, {} 行, 耗时 {}ms", rows.size(), System.currentTimeMillis() - readStart);
 
-        while (offset < totalRows) {
-            List<Map<String, Object>> rows = migrateDao.fetchOldRecordsBatch(oldTable, taskId, offset, batchSize);
-            if (rows.isEmpty()) break;
-
-            List<Map<String, Object>> validBatch = new ArrayList<>();
-            int skipped = 0;
-            for (Map<String, Object> row : rows) {
-                String phone = String.valueOf(row.getOrDefault("phone", ""));
-                if (!phone.matches("\\d+")) {
-                    skipped++;
-                    continue;
-                }
-                cleanUintField(row, "age");
-                cleanUintField(row, "active_day");
-                cleanUintField(row, "business_number");
-                validBatch.add(row);
+        List<Map<String, Object>> validBatch = new ArrayList<>(rows.size());
+        int skipped = 0;
+        for (Map<String, Object> row : rows) {
+            String phone = String.valueOf(row.getOrDefault("phone", ""));
+            if (!DIGITS_ONLY.matcher(phone).matches()) {
+                skipped++;
+                continue;
             }
+            cleanUintField(row, "age");
+            cleanUintField(row, "active_day");
+            cleanUintField(row, "business_number");
+            validBatch.add(row);
+        }
+        rows = null;
 
-            if (skipped > 0) {
-                log.info("    跳过 {} 条无效 phone 记录", skipped);
-            }
-
-            if (!validBatch.isEmpty()) {
-                migrateDao.batchInsertNewCk(newTable, validBatch);
-            }
-
-            migrated += validBatch.size();
-            offset += batchSize;
-            log.info("    已写入 {} / {}", migrated, totalRows);
+        if (skipped > 0) {
+            log.info("  跳过 {} 条无效 phone 记录", skipped);
         }
 
-        return migrated;
+        if (!validBatch.isEmpty()) {
+            long writeStart = System.currentTimeMillis();
+            migrateDao.batchInsertNewCk(newTable, validBatch);
+            log.info("  写入完成, {} 行, 耗时 {}ms", validBatch.size(), System.currentTimeMillis() - writeStart);
+        }
+
+        return validBatch.size();
     }
 
     private void cleanUintField(Map<String, Object> row, String field) {
