@@ -71,21 +71,13 @@ public class LocalFileUtil {
      * @return 完整的下载URL
      */
     private String generateDownloadUrl(String folder, String fileName) {
-        String serverDomain = localFileProperties.getServerDomain();
         String accessPrefix = localFileProperties.getAccessPrefix();
-        
-        // 确保域名不以/结尾
-        if (serverDomain.endsWith("/")) {
-            serverDomain = serverDomain.substring(0, serverDomain.length() - 1);
-        }
-        
-        // 确保访问前缀以/开头
+
         if (!accessPrefix.startsWith("/")) {
             accessPrefix = "/" + accessPrefix;
         }
-        
-        // 构建完整URL
-        return serverDomain + accessPrefix + "/" + folder + "/" + fileName;
+
+        return accessPrefix + "/" + folder + "/" + fileName;
     }
 
     /**

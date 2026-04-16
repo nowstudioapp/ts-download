@@ -1,21 +1,22 @@
 package com.ts.download.controller;
 
-import com.ts.download.domain.dto.DownloadReqDTO;
+import com.alibaba.fastjson2.JSON;
 import com.ts.download.domain.dto.MergeDownloadReqDTO;
 import com.ts.download.domain.dto.QueryTaskReqDTO;
+import com.ts.download.domain.entity.DownloadLog;
 import com.ts.download.domain.vo.R;
+import com.ts.download.domain.vo.UserVO;
+import com.ts.download.service.DownloadLogService;
 import com.ts.download.service.DownloadService;
+import com.ts.download.util.IpUtil;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * 文件下载控制器
- * 
- * @author TS Team
- */
+import javax.servlet.http.HttpServletRequest;
+
 @Api(tags = "文件下载")
 @RestController
 @RequestMapping("/api/download")
@@ -25,45 +26,32 @@ public class DownloadController {
     @Autowired
     private DownloadService downloadService;
 
-    @PostMapping("/generateDownloadUrl")
-    @ApiOperation("生成文件下载地址（按时间从新到旧查询）")
-    public R<String> generateDownloadUrl(@RequestBody DownloadReqDTO reqDTO) {
-        log.info("=== 接收到下载请求 ===，downloadType={}, taskType={}, countryCode={}",
-                reqDTO.getDownloadType(), reqDTO.getTaskType(), reqDTO.getCountryCode());
-        
-        try {
-            String downloadUrl = downloadService.generateDownloadUrl(reqDTO);
-            return R.ok(downloadUrl, "文件生成成功");
-        } catch (Exception e) {
-            log.error("生成下载地址异常：{}", e.getMessage(), e);
-            return R.fail("生成下载地址失败：" + e.getMessage());
-        }
-    }
-
-    @PostMapping("/query")
-    @ApiOperation("查询文件信息")
-    public R<Object> queryFileInfo(@RequestBody DownloadReqDTO reqDTO) {
-        log.info("=== 接收到查询请求 ===，downloadType={}, taskType={}, countryCode={}",
-                reqDTO.getDownloadType(), reqDTO.getTaskType(), reqDTO.getCountryCode());
-        
-        try {
-            Object result = downloadService.queryFileInfo(reqDTO);
-            return R.ok(result, "查询成功");
-        } catch (Exception e) {
-            log.error("查询文件信息异常：{}", e.getMessage(), e);
-            return R.fail("查询失败：" + e.getMessage());
-        }
-    }
+    @Autowired
+    private DownloadLogService downloadLogService;
 
     @PostMapping("/mergeDownload")
-    @ApiOperation("合并两个任务类型下载（根据phone匹配，支持跳过指定数量实现分批下载）")
-    public R<String> mergeDownload(@RequestBody MergeDownloadReqDTO reqDTO) {
-        log.info("=== 接收到合并下载请求 ===，firstTaskType={}, secondTaskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, activeDay={}, skip={}",
-                reqDTO.getFirstTaskType(), reqDTO.getSecondTaskType(), reqDTO.getCountryCode(), 
-                reqDTO.getMinAge(), reqDTO.getMaxAge(), reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getActiveDay(), reqDTO.getSkip());
-        
+    @ApiOperation("合并两个任务类型下载")
+    public R<String> mergeDownload(@RequestBody MergeDownloadReqDTO reqDTO, HttpServletRequest request) {
+        UserVO user = (UserVO) request.getAttribute("currentUser");
+        log.info("用户 {} 发起合并下载请求，firstTaskType={}, secondTaskType={}, countryCode={}",
+                user.getUsername(), reqDTO.getFirstTaskType(), reqDTO.getSecondTaskType(), reqDTO.getCountryCode());
+
         try {
             String downloadUrl = downloadService.generateMergeDownloadUrl(reqDTO);
+
+            if (!"admin".equals(user.getRole()) && !"superAdmin".equals(user.getRole())) {
+                DownloadLog dl = new DownloadLog();
+                dl.setUserId(user.getId());
+                dl.setUsername(user.getUsername());
+                dl.setIp(IpUtil.getClientIp(request));
+                dl.setCountryCode(reqDTO.getCountryCode());
+                dl.setFirstTaskType(reqDTO.getFirstTaskType());
+                dl.setSecondTaskType(reqDTO.getSecondTaskType() != null ? reqDTO.getSecondTaskType() : "");
+                dl.setDownloadParams(JSON.toJSONString(reqDTO));
+                dl.setFileUrl(downloadUrl);
+                downloadLogService.record(dl);
+            }
+
             return R.ok(downloadUrl, "合并文件生成成功");
         } catch (Exception e) {
             log.error("合并下载异常：{}", e.getMessage(), e);
@@ -72,12 +60,10 @@ public class DownloadController {
     }
 
     @PostMapping("/queryTaskCount")
-    @ApiOperation("查询任务记录数量（支持条件筛选）")
+    @ApiOperation("查询任务记录数量")
     public R<Object> queryTaskCount(@RequestBody QueryTaskReqDTO reqDTO) {
-        log.info("=== 接收到任务查询请求 ===，taskType={}, countryCode={}, minAge={}, maxAge={}, sex={}, excludeSkin={}, checkUserNameEmpty={}, activeDay={}",
-                reqDTO.getTaskType(), reqDTO.getCountryCode(), reqDTO.getMinAge(), reqDTO.getMaxAge(), 
-                reqDTO.getSex(), reqDTO.getExcludeSkin(), reqDTO.getCheckUserNameEmpty(), reqDTO.getActiveDay());
-        
+        log.info("查询任务记录数量，taskType={}, countryCode={}", reqDTO.getTaskType(), reqDTO.getCountryCode());
+
         try {
             Object result = downloadService.queryTaskCount(reqDTO);
             return R.ok(result, "查询成功");

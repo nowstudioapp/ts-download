@@ -1,14 +1,18 @@
 # 应用基础配置
 spring:
   profiles:
-    active: prod  # 默认使用开发环境
+    active: prod
   application:
     name: ts-download-service
-  # 文件上传
   servlet:
     multipart:
       max-file-size: 300MB
       max-request-size: 300MB
+  session:
+    store-type: redis
+    timeout: 7200
+    redis:
+      namespace: ts:session
 
 # MyBatis-Plus配置
 mybatis-plus:

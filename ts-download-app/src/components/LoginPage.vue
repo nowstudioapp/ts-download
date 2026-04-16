@@ -2,8 +2,8 @@
   <div class="login-container">
     <div class="login-box">
       <div class="login-header">
-        <h2>系统访问验证</h2>
-        <p>请输入访问密钥以继续使用系统</p>
+        <h2>TS 下载系统</h2>
+        <p>请输入用户名和密码登录</p>
       </div>
       
       <el-form 
@@ -13,11 +13,24 @@
         @submit.prevent="handleLogin"
         class="login-form"
       >
-        <el-form-item prop="secretKey">
+        <el-form-item prop="username">
           <el-input
-            v-model="loginForm.secretKey"
+            v-model="loginForm.username"
+            placeholder="请输入用户名"
+            size="large"
+            @keyup.enter="handleLogin"
+          >
+            <template #prefix>
+              <el-icon><User /></el-icon>
+            </template>
+          </el-input>
+        </el-form-item>
+
+        <el-form-item prop="password">
+          <el-input
+            v-model="loginForm.password"
             type="password"
-            placeholder="请输入访问密钥"
+            placeholder="请输入密码"
             show-password
             size="large"
             @keyup.enter="handleLogin"
@@ -36,14 +49,13 @@
             @click="handleLogin"
             class="login-button"
           >
-            <el-icon><Unlock /></el-icon>
-            验证访问
+            登 录
           </el-button>
         </el-form-item>
       </el-form>
       
       <div class="login-footer">
-        <p>请联系管理员获取访问密钥</p>
+        <p>请联系管理员获取账号</p>
       </div>
     </div>
   </div>
@@ -51,25 +63,27 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Lock, Unlock } from '@element-plus/icons-vue'
+import { Lock, User } from '@element-plus/icons-vue'
+import { login } from '../api/auth'
 
-const emit = defineEmits(['login-success'])
-
-// 预设的密钥（实际项目中应该从后端验证）
-const VALID_SECRET_KEY = 'jia1qaz!QAZ'
-
+const router = useRouter()
 const loading = ref(false)
 const loginFormRef = ref()
 
 const loginForm = reactive({
-  secretKey: ''
+  username: '',
+  password: ''
 })
 
 const rules = {
-  secretKey: [
-    { required: true, message: '请输入访问密钥', trigger: 'blur' },
-    { min: 6, message: '密钥长度不能少于6位', trigger: 'blur' }
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
   ]
 }
 
@@ -78,26 +92,25 @@ const handleLogin = async () => {
   
   try {
     await loginFormRef.value.validate()
-    
     loading.value = true
     
-    // 模拟验证延迟
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    const res = await login({
+      username: loginForm.username,
+      password: loginForm.password
+    })
     
-    if (loginForm.secretKey === VALID_SECRET_KEY) {
-      ElMessage.success('验证成功，欢迎使用系统！')
-      
-      // 保存登录状态到localStorage
-      localStorage.setItem('ts_download_auth', 'true')
-      localStorage.setItem('ts_download_auth_time', Date.now().toString())
-      
-      emit('login-success')
+    if (res.code === 200) {
+      ElMessage.success('登录成功')
+      sessionStorage.setItem('currentUser', JSON.stringify(res.data))
+      if (window.__setCurrentUser) {
+        window.__setCurrentUser(res.data)
+      }
+      router.push('/download')
     } else {
-      ElMessage.error('访问密钥错误，请重新输入')
-      loginForm.secretKey = ''
+      ElMessage.error(res.msg || '登录失败')
     }
   } catch (error) {
-    console.log('表单验证失败:', error)
+    console.error('登录失败:', error)
   } finally {
     loading.value = false
   }

@@ -33,17 +33,24 @@ public class ClickHouseTaskRecordDao {
         TASK_TYPE_TO_TABLE.put("gender", "ts_ws_task_record");
         TASK_TYPE_TO_TABLE.put("whatsappExist", "ts_ws_task_record");
         TASK_TYPE_TO_TABLE.put("wsValid", "ts_ws_task_record");
+        TASK_TYPE_TO_TABLE.put("wsExist", "ts_ws_task_record");
         TASK_TYPE_TO_TABLE.put("sieveLive", "ts_tg_task_record");
         TASK_TYPE_TO_TABLE.put("sieveAvatar", "ts_tg_task_record");
         TASK_TYPE_TO_TABLE.put("tgEffective", "ts_tg_task_record");
     }
 
     /**
-     * 根据任务类型和国家代码获取表名
+     * 根据任务类型获取表名（不再按国家分表）
+     */
+    public String getTableName(String taskType) {
+        return TASK_TYPE_TO_TABLE.getOrDefault(taskType, "ts_other_task_record");
+    }
+
+    /**
+     * 兼容旧调用签名，忽略 countryCode 参数
      */
     public String getTableName(String taskType, String countryCode) {
-        String tablePrefix = TASK_TYPE_TO_TABLE.getOrDefault(taskType, "ts_other_task_record");
-        return tablePrefix + "_" + countryCode.toUpperCase();
+        return getTableName(taskType);
     }
 
     /**
@@ -130,6 +137,7 @@ public class ClickHouseTaskRecordDao {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
+        sql.append(" AND country_code = '").append(countryCode).append("'");
         
         // 添加年龄条件
         if (minAge != null && maxAge != null) {
@@ -198,6 +206,7 @@ public class ClickHouseTaskRecordDao {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
+        sql.append(" AND country_code = '").append(countryCode).append("'");
         
         // 添加年龄条件
         if (minAge != null && maxAge != null) {
@@ -302,6 +311,7 @@ public class ClickHouseTaskRecordDao {
         sql.append("member, ethnicity, first_name, last_name, country_code, pic ");
         sql.append("FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
+        sql.append(" AND country_code = '").append(countryCode).append("'");
         
         // 添加年龄条件
         if (minAge != null && maxAge != null) {
@@ -399,6 +409,7 @@ public class ClickHouseTaskRecordDao {
         sql.append("member, ethnicity, first_name, last_name, country_code, pic ");
         sql.append("FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
+        sql.append(" AND country_code = '").append(countryCode).append("'");
         sql.append(" AND phone IN (");
         
         // 构建IN条件
@@ -438,6 +449,7 @@ public class ClickHouseTaskRecordDao {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT COUNT(*) FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
+        sql.append(" AND country_code = '").append(countryCode).append("'");
         
         // 添加年龄条件
         if (minAge != null && maxAge != null) {
@@ -518,6 +530,7 @@ public class ClickHouseTaskRecordDao {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT * FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
+        sql.append(" AND country_code = '").append(countryCode).append("'");
         sql.append(" ORDER BY create_time DESC");
         
         // 添加 limit 限制（强烈建议设置，避免一次性加载过多数据到内存）
@@ -577,6 +590,7 @@ public class ClickHouseTaskRecordDao {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT DISTINCT phone FROM ").append(tableName);
         sql.append(" WHERE task_type = '").append(taskType).append("'");
+        sql.append(" AND country_code = '").append(countryCode).append("'");
         
         // 添加年龄条件
         if (minAge != null && maxAge != null) {

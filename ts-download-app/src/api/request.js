@@ -1,60 +1,106 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { fetchPublicKey, encryptRequest, decryptResponse, clearPublicKey } from '../utils/crypto'
+import router from '../router'
 
-// 创建axios实例
 const request = axios.create({
   baseURL: '/api',
-  timeout: 0, // 不设置超时时间,因为下载可能很慢
-  withCredentials: true // 允许携带cookie
+  timeout: 0,
+  withCredentials: true
 })
 
-// 请求拦截器
+let cryptoEnabled = false
+
+fetchPublicKey().then((key) => {
+  cryptoEnabled = !!key
+}).catch(() => {
+  console.warn('获取公钥失败，API 加密未启用')
+})
+
 request.interceptors.request.use(
-  config => {
-    // 可以在这里添加token等认证信息
-    // const token = localStorage.getItem('token')
-    // if (token) {
-    //   config.headers['Authorization'] = `Bearer ${token}`
-    // }
+  async config => {
+    if (cryptoEnabled && config.method !== 'get' && config.data) {
+      if (!config._originalData) {
+        config._originalData = config.data
+      }
+      try {
+        await fetchPublicKey()
+        const result = encryptRequest(config._originalData)
+        if (result) {
+          config._aesKeyBase64 = result.aesKeyBase64
+          config._ivBase64 = result.iv
+          config.headers['X-Encrypted'] = 'true'
+          config.headers['X-Encrypted-Key'] = result.encryptedKey
+          config.headers['X-Encrypted-IV'] = result.iv
+          config.headers['Content-Type'] = 'text/plain'
+          config.data = result.encryptedData
+        }
+      } catch (e) {
+        console.warn('请求加密失败，使用明文', e)
+      }
+    }
     return config
   },
   error => {
-    console.error('请求错误:', error)
     return Promise.reject(error)
   }
 )
 
-// 响应拦截器
 request.interceptors.response.use(
   response => {
+    const config = response.config
+    if (config._aesKeyBase64 && typeof response.data === 'string') {
+      try {
+        const decrypted = decryptResponse(response.data, config._aesKeyBase64, config._ivBase64)
+        return JSON.parse(decrypted)
+      } catch (e) {
+        console.warn('响应解密失败', e)
+        return Promise.reject(new Error('响应解密失败'))
+      }
+    }
     return response.data
   },
-  error => {
-    console.error('响应错误:', error)
-    
-    let message = '请求失败'
+  async error => {
     if (error.response) {
-      switch (error.response.status) {
+      const { status, data } = error.response
+      const config = error.config
+
+      if (status === 400 && data?.msg === '加解密失败' && !config._retried) {
+        config._retried = true
+        clearPublicKey()
+        await fetchPublicKey(true)
+        cryptoEnabled = true
+        delete config.headers['X-Encrypted']
+        delete config.headers['X-Encrypted-Key']
+        delete config.headers['X-Encrypted-IV']
+        config.data = config._originalData
+        return request(config)
+      }
+
+      let message = '请求失败'
+      switch (status) {
         case 401:
-          message = '未授权,请重新登录'
+          message = '未登录或登录已过期'
+          router.push('/login')
           break
         case 403:
-          message = '拒绝访问'
+          message = '权限不足'
           break
         case 404:
-          message = '请求错误,未找到该资源'
+          message = '请求的资源不存在'
           break
         case 500:
           message = '服务器错误'
           break
         default:
-          message = error.response.data?.message || '请求失败'
+          message = data?.msg || '请求失败'
       }
+      ElMessage.error(message)
     } else if (error.request) {
-      message = '网络错误,请检查网络连接'
+      ElMessage.error('网络错误,请检查网络连接')
+    } else {
+      ElMessage.error('请求失败')
     }
-    
-    ElMessage.error(message)
     return Promise.reject(error)
   }
 )

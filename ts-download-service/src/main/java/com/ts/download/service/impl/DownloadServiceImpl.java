@@ -1,8 +1,6 @@
 package com.ts.download.service.impl;
 
-import com.ts.download.constant.TaskTypeConstants;
 import com.ts.download.dao.ClickHouseTaskRecordDao;
-import com.ts.download.domain.dto.DownloadReqDTO;
 import com.ts.download.domain.dto.MergeDownloadReqDTO;
 import com.ts.download.domain.dto.QueryTaskReqDTO;
 import com.ts.download.domain.entity.TsWsTaskRecord;
@@ -16,7 +14,6 @@ import com.ts.download.util.DateUtils;
 import com.ts.download.util.ExcelUtil;
 import com.ts.download.util.MockHttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
@@ -51,394 +48,6 @@ public class DownloadServiceImpl implements DownloadService {
 
     @Autowired
     private LocalFileProperties localFileProperties;
-
-    @Override
-    public String generateDownloadUrl(DownloadReqDTO reqDTO) throws Exception {
-        long totalStartTime = System.currentTimeMillis();
-        String downloadType = reqDTO.getDownloadType();
-        String taskType = reqDTO.getTaskType();
-        String countryCode = reqDTO.getCountryCode();
-        Integer limit = reqDTO.getLimit();
-
-        log.info("=== 开始生成下载URL ===，downloadType={}, taskType={}, countryCode={}, limit={}",
-                downloadType, taskType, countryCode, limit);
-
-        // 1. 从 ClickHouse 获取数据
-        long dataFetchStart = System.currentTimeMillis();
-        List<TsWsTaskRecord> taskRecordList = clickHouseTaskRecordDao.selectTaskRecordList(taskType, countryCode, limit);
-        log.info("数据获取耗时：{}ms, 原始记录数：{}", System.currentTimeMillis() - dataFetchStart, 
-                taskRecordList != null ? taskRecordList.size() : 0);
-
-        if (taskRecordList == null || taskRecordList.isEmpty()) {
-            log.warn("未找到任务记录，taskType={}, countryCode={}", taskType, countryCode);
-            throw new RuntimeException("未找到任务记录");
-        }
-
-        // 2. 应用层去重：保留每个phone的第一条记录（已按phone和create_time DESC排序）
-        Map<String, TsWsTaskRecord> uniqueRecords = new LinkedHashMap<>();
-        for (TsWsTaskRecord record : taskRecordList) {
-            String phone = record.getPhone();
-            if (phone != null && !uniqueRecords.containsKey(phone)) {
-                uniqueRecords.put(phone, record);
-            }
-        }
-        taskRecordList = new ArrayList<>(uniqueRecords.values());
-        log.info("去重后记录数：{}", taskRecordList.size());
-        
-        // 调试：打印前3条记录的phone和userName
-        if (!taskRecordList.isEmpty()) {
-            for (int i = 0; i < Math.min(3, taskRecordList.size()); i++) {
-                TsWsTaskRecord r = taskRecordList.get(i);
-                log.info("记录{}：phone={}, userName={}", i, r.getPhone(), r.getUserName());
-            }
-        }
-
-        // 2. 处理数据：设置 lastOnlineTimeStr
-        taskRecordList.forEach(vo -> {
-            Date lastOnlineTime = vo.getLastOnlineTime();
-            if (lastOnlineTime != null) {
-                vo.setLastOnlineTimeStr(DateUtils.parseDateToStr(DateUtils.YYYY_MM_DD_HH_MM_SS, lastOnlineTime));
-            } else {
-                vo.setLastOnlineTimeStr(vo.getStatus());
-            }
-        });
-
-        // 3. 生成文件并上传到 COS
-        String downloadUrl;
-        if ("txt".equals(downloadType)) {
-            downloadUrl = generateTxtFile(taskRecordList, taskType, countryCode);
-        } else {
-            downloadUrl = generateExcelFile(taskRecordList, taskType, countryCode);
-        }
-
-        log.info("=== 下载URL生成完成 ===，总耗时：{}ms, URL={}", 
-                System.currentTimeMillis() - totalStartTime, downloadUrl);
-
-        return downloadUrl;
-    }
-
-    /**
-     * 生成TXT文件
-     */
-    private String generateTxtFile(List<TsWsTaskRecord> taskRecordList, String taskType, String countryCode) throws Exception {
-        long txtGenerateStart = System.currentTimeMillis();
-
-        // 生成文件名
-        long timestamp = System.currentTimeMillis();
-        String randomId = UUID.randomUUID().toString().substring(0, 8);
-        String fileName = timestamp + "_" + randomId + "_" + taskType + "_" + countryCode + ".txt";
-
-        // 生成日期目录
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-        String dateDir = dateFormat.format(new Date());
-
-        log.info("生成TXT文件：{}", fileName);
-
-        // 创建临时文件
-        File tempFile = new File(System.getProperty("java.io.tmpdir"), fileName);
-
-        try {
-            // 生成TXT内容并写入文件
-            byte[] data = IOUtils.toByteArray(generateTextResource(taskRecordList));
-            try (FileOutputStream fos = new FileOutputStream(tempFile);
-                 BufferedOutputStream bos = new BufferedOutputStream(fos, 8192)) {
-                bos.write(data);
-            }
-
-            log.info("TXT文件生成耗时：{}ms, 文件大小：{}KB",
-                    System.currentTimeMillis() - txtGenerateStart, tempFile.length() / 1024);
-
-            // 保存文件（本地存储或COS）
-            long uploadStart = System.currentTimeMillis();
-            String downloadUrl;
-            if (localFileProperties.isEnabled()) {
-                downloadUrl = localFileUtil.saveToLocal(tempFile, "download/" + dateDir);
-                log.info("TXT文件保存到本地耗时：{}ms", System.currentTimeMillis() - uploadStart);
-            } else {
-                downloadUrl = cosUtil.uploadToS3(tempFile, "download/" + dateDir);
-                log.info("TXT文件上传到COS耗时：{}ms", System.currentTimeMillis() - uploadStart);
-            }
-
-            return downloadUrl;
-
-        } finally {
-            // 清理临时文件
-            if (tempFile.exists()) {
-                boolean deleted = tempFile.delete();
-                log.info("临时TXT文件清理：{}", deleted ? "成功" : "失败");
-            }
-        }
-    }
-
-    /**
-     * 生成Excel文件
-     */
-    private String generateExcelFile(List<TsWsTaskRecord> taskRecordList, String taskType, String countryCode) throws Exception {
-        long excelExportStart = System.currentTimeMillis();
-
-        // 生成文件名
-        long timestamp = System.currentTimeMillis();
-        String randomId = UUID.randomUUID().toString().substring(0, 8);
-        String fileName = timestamp + "_" + randomId + "_" + taskType + "_" + countryCode + ".xlsx";
-
-        // 生成日期目录
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-        String dateDir = dateFormat.format(new Date());
-
-        log.info("生成Excel文件：{}", fileName);
-
-        // 创建临时文件
-        File tempFile = new File(System.getProperty("java.io.tmpdir"), fileName);
-
-        try {
-            // 创建临时响应对象，将输出重定向到文件
-            FileOutputStream fileOutputStream = new FileOutputStream(tempFile);
-            BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(fileOutputStream, 8192);
-            MockHttpServletResponse mockResponse = new MockHttpServletResponse();
-            mockResponse.setOutputStream(bufferedOutputStream);
-
-            String sheetName = taskType + "_" + countryCode;
-
-            // 根据任务类型使用对应的VO类生成Excel
-            generateExcelByTaskType(taskRecordList, taskType, sheetName, fileName, mockResponse);
-
-            // 关闭文件流
-            bufferedOutputStream.close();
-            fileOutputStream.close();
-
-            log.info("Excel导出耗时：{}ms, 导出记录数：{}, 文件大小：{}KB",
-                    System.currentTimeMillis() - excelExportStart, taskRecordList.size(), tempFile.length() / 1024);
-
-            // 保存文件（本地存储或COS）
-            long uploadStart = System.currentTimeMillis();
-            String downloadUrl;
-            if (localFileProperties.isEnabled()) {
-                downloadUrl = localFileUtil.saveToLocal(tempFile, "download/" + dateDir);
-                log.info("Excel文件保存到本地耗时：{}ms", System.currentTimeMillis() - uploadStart);
-            } else {
-                downloadUrl = cosUtil.uploadToS3(tempFile, "download/" + dateDir);
-                log.info("Excel文件上传到COS耗时：{}ms", System.currentTimeMillis() - uploadStart);
-            }
-
-            return downloadUrl;
-
-        } finally {
-            // 清理临时文件
-            if (tempFile.exists()) {
-                boolean deleted = tempFile.delete();
-                log.info("临时Excel文件清理：{}", deleted ? "成功" : "失败");
-            }
-        }
-    }
-
-    @Override
-    public Object queryFileInfo(DownloadReqDTO reqDTO) throws Exception {
-        long queryStartTime = System.currentTimeMillis();
-        String taskType = reqDTO.getTaskType();
-        String countryCode = reqDTO.getCountryCode();
-
-        log.info("=== 开始查询文件信息 ===，taskType={}, countryCode={}",
-                taskType, countryCode);
-
-        // 查询总记录数
-        String tableName = clickHouseTaskRecordDao.getTableName(taskType, countryCode);
-        Long totalCount = clickHouseTaskRecordDao.countRecords(tableName);
-        
-        if (totalCount == null || totalCount == 0) {
-            log.warn("未找到任务记录，taskType={}, countryCode={}", taskType, countryCode);
-            throw new RuntimeException("未找到任务记录");
-        }
-
-        // 构建查询结果
-        QueryResultVO result = new QueryResultVO();
-        result.setTaskType(taskType);
-        result.setCountryCode(countryCode);
-        result.setTotalCount(totalCount);
-        result.setValidCount(totalCount);
-
-        log.info("=== 查询文件信息完成 ===，耗时：{}ms, 总记录数：{}", 
-                System.currentTimeMillis() - queryStartTime, result.getTotalCount());
-
-        return result;
-    }
-
-    /**
-     * 估算文件大小
-     */
-    private long calculateEstimatedFileSize(List<TsWsTaskRecord> taskRecordList, String taskType) {
-        if (taskRecordList == null || taskRecordList.isEmpty()) {
-            return 0L;
-        }
-
-        int recordCount = taskRecordList.size();
-        int avgBytesPerRecord;
-
-        // 根据任务类型估算每条记录的平均字节数
-        if ("wsValid".equals(taskType)) {
-            // phone + lastOnlineTime + activeDay ≈ 50字节
-            avgBytesPerRecord = 50;
-        } else if ("gender".equals(taskType)) {
-            // 包含更多字段 ≈ 200字节
-            avgBytesPerRecord = 200;
-        } else if ("whatsappExist".equals(taskType) || "wsExist".equals(taskType)) {
-            // phone + status ≈ 30字节
-            avgBytesPerRecord = 30;
-        } else if ("sieveLive".equals(taskType) || "sieveAvatar".equals(taskType)) {
-            // TG相关字段较多 ≈ 150字节
-            avgBytesPerRecord = 150;
-        } else if (taskType.endsWith("Carrier")) {
-            // 运营商相关字段 ≈ 100字节
-            avgBytesPerRecord = 100;
-        } else {
-            // 默认只有phone ≈ 20字节
-            avgBytesPerRecord = 20;
-        }
-
-        // 转换为KB并添加一些缓冲
-        return (long) Math.ceil((recordCount * avgBytesPerRecord * 1.2) / 1024.0);
-    }
-
-    /**
-     * 生成文本资源（异步写入）
-     */
-    private InputStream generateTextResource(List<TsWsTaskRecord> dataList) throws IOException {
-        PipedInputStream in = new PipedInputStream();
-        PipedOutputStream out = new PipedOutputStream(in);
-        CompletableFuture.runAsync(() -> {
-            try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
-                for (TsWsTaskRecord taskRecord : dataList) {
-                    writer.write(taskRecord.getPhone());
-                    writer.newLine();
-                }
-            } catch (IOException e) {
-                throw new RuntimeException("写入失败", e);
-            }
-        });
-        return in;
-    }
-
-    /**
-     * 根据任务类型使用对应的VO类生成Excel
-     */
-    private void generateExcelByTaskType(List<TsWsTaskRecord> taskRecordList, String taskType, 
-                                         String sheetName, String fileName, MockHttpServletResponse response) {
-        switch (taskType) {
-            case "gender":
-                exportWithVO(taskRecordList, TsWsTaskRecordWSGender.class, sheetName, fileName, response);
-                break;
-            case "whatsappExist":
-            case "wsExist":
-                exportWithVO(taskRecordList, TsWsTaskRecordWSExists.class, sheetName, fileName, response);
-                break;
-            case "rcsValid":
-                exportWithVO(taskRecordList, TsWsTaskRecordRcs.class, sheetName, fileName, response);
-                break;
-            case "sieveLive":
-            case "sieveAvatar":
-            case "tgEffective":
-                exportWithVO(taskRecordList, TsWsTaskRecordTG.class, sheetName, fileName, response);
-                break;
-            case "line":
-            case "line_gender":
-                exportWithVO(taskRecordList, TsLineTaskRecord.class, sheetName, fileName, response);
-                break;
-            case "viber":
-            case "viber_active":
-                exportWithVO(taskRecordList, TsWsTaskRecordViber.class, sheetName, fileName, response);
-                break;
-            case "usaCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordUsaCarrier.class, sheetName, fileName, response);
-                break;
-            case "vnCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordVnCarrier.class, sheetName, fileName, response);
-                break;
-            case "deCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordDeCarrier.class, sheetName, fileName, response);
-                break;
-            case "ruCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordRuCarrier.class, sheetName, fileName, response);
-                break;
-            case "frCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordFrCarrier.class, sheetName, fileName, response);
-                break;
-            case "pkCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordPkCarrier.class, sheetName, fileName, response);
-                break;
-            case "brCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordBrCarrier.class, sheetName, fileName, response);
-                break;
-            case "jpCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordJpCarrier.class, sheetName, fileName, response);
-                break;
-            case "gbCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordGbCarrier.class, sheetName, fileName, response);
-                break;
-            case "bdCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordBdCarrier.class, sheetName, fileName, response);
-                break;
-            case "trCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordTrCarrier.class, sheetName, fileName, response);
-                break;
-            case "idCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordIdCarrier.class, sheetName, fileName, response);
-                break;
-            case "maCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordMaCarrier.class, sheetName, fileName, response);
-                break;
-            case "mxCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordMxCarrier.class, sheetName, fileName, response);
-                break;
-            case "nlCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordNlCarrier.class, sheetName, fileName, response);
-                break;
-            case "ptCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordPtCarrier.class, sheetName, fileName, response);
-                break;
-            case "esCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordEsCarrier.class, sheetName, fileName, response);
-                break;
-            case "uaCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordUaCarrier.class, sheetName, fileName, response);
-                break;
-            case "uzCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordUzCarrier.class, sheetName, fileName, response);
-                break;
-            case "kzCarrier":
-                exportWithVO(taskRecordList, TsWsTaskRecordKzCarrier.class, sheetName, fileName, response);
-                break;
-            case "globalOperators":
-                exportWithVO(taskRecordList, TsWsTaskRecordGlobalOperators.class, sheetName, fileName, response);
-                break;
-            default:
-                // 默认使用TsWsTaskRecordExists（只有phone字段）
-                exportWithVO(taskRecordList, TsWsTaskRecordExists.class, sheetName, fileName, response);
-                break;
-        }
-    }
-
-    /**
-     * 使用指定的VO类导出Excel
-     */
-    private <V> void exportWithVO(List<TsWsTaskRecord> sourceList, Class<V> voClass, 
-                                   String sheetName, String fileName, MockHttpServletResponse response) {
-        try {
-            // 转换数据：TsWsTaskRecord -> VO
-            List<V> voList = new ArrayList<>();
-            for (TsWsTaskRecord source : sourceList) {
-                V vo = voClass.getDeclaredConstructor().newInstance();
-                BeanUtils.copyProperties(source, vo);
-                voList.add(vo);
-            }
-            
-            // 使用VO类导出Excel
-            ExcelUtil<V> util = new ExcelUtil<>(voClass);
-            util.exportExcel(response, voList, sheetName, fileName);
-            
-        } catch (Exception e) {
-            log.error("导出Excel失败，VO类：{}", voClass.getName(), e);
-            throw new RuntimeException("导出Excel失败", e);
-        }
-    }
 
     @Override
     public String generateMergeDownloadUrl(MergeDownloadReqDTO reqDTO) throws Exception {
@@ -1206,5 +815,117 @@ public class DownloadServiceImpl implements DownloadService {
                 System.currentTimeMillis() - queryStartTime, result.getTotalCount());
 
         return result;
+    }
+
+    private void generateExcelByTaskType(List<TsWsTaskRecord> taskRecordList, String taskType,
+                                         String sheetName, String fileName, MockHttpServletResponse response) {
+        switch (taskType) {
+            case "gender":
+                exportWithVO(taskRecordList, TsWsTaskRecordWSGender.class, sheetName, fileName, response);
+                break;
+            case "whatsappExist":
+            case "wsExist":
+                exportWithVO(taskRecordList, TsWsTaskRecordWSExists.class, sheetName, fileName, response);
+                break;
+            case "rcsValid":
+                exportWithVO(taskRecordList, TsWsTaskRecordRcs.class, sheetName, fileName, response);
+                break;
+            case "sieveLive":
+            case "sieveAvatar":
+            case "tgEffective":
+                exportWithVO(taskRecordList, TsWsTaskRecordTG.class, sheetName, fileName, response);
+                break;
+            case "line":
+            case "line_gender":
+                exportWithVO(taskRecordList, TsLineTaskRecord.class, sheetName, fileName, response);
+                break;
+            case "viber":
+            case "viber_active":
+                exportWithVO(taskRecordList, TsWsTaskRecordViber.class, sheetName, fileName, response);
+                break;
+            case "usaCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordUsaCarrier.class, sheetName, fileName, response);
+                break;
+            case "vnCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordVnCarrier.class, sheetName, fileName, response);
+                break;
+            case "deCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordDeCarrier.class, sheetName, fileName, response);
+                break;
+            case "ruCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordRuCarrier.class, sheetName, fileName, response);
+                break;
+            case "frCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordFrCarrier.class, sheetName, fileName, response);
+                break;
+            case "pkCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordPkCarrier.class, sheetName, fileName, response);
+                break;
+            case "brCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordBrCarrier.class, sheetName, fileName, response);
+                break;
+            case "jpCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordJpCarrier.class, sheetName, fileName, response);
+                break;
+            case "gbCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordGbCarrier.class, sheetName, fileName, response);
+                break;
+            case "bdCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordBdCarrier.class, sheetName, fileName, response);
+                break;
+            case "trCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordTrCarrier.class, sheetName, fileName, response);
+                break;
+            case "idCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordIdCarrier.class, sheetName, fileName, response);
+                break;
+            case "maCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordMaCarrier.class, sheetName, fileName, response);
+                break;
+            case "mxCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordMxCarrier.class, sheetName, fileName, response);
+                break;
+            case "nlCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordNlCarrier.class, sheetName, fileName, response);
+                break;
+            case "ptCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordPtCarrier.class, sheetName, fileName, response);
+                break;
+            case "esCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordEsCarrier.class, sheetName, fileName, response);
+                break;
+            case "uaCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordUaCarrier.class, sheetName, fileName, response);
+                break;
+            case "uzCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordUzCarrier.class, sheetName, fileName, response);
+                break;
+            case "kzCarrier":
+                exportWithVO(taskRecordList, TsWsTaskRecordKzCarrier.class, sheetName, fileName, response);
+                break;
+            case "globalOperators":
+                exportWithVO(taskRecordList, TsWsTaskRecordGlobalOperators.class, sheetName, fileName, response);
+                break;
+            default:
+                exportWithVO(taskRecordList, TsWsTaskRecordExists.class, sheetName, fileName, response);
+                break;
+        }
+    }
+
+    private <V> void exportWithVO(List<TsWsTaskRecord> sourceList, Class<V> voClass,
+                                   String sheetName, String fileName, MockHttpServletResponse response) {
+        try {
+            List<V> voList = new ArrayList<>();
+            for (TsWsTaskRecord source : sourceList) {
+                V vo = voClass.getDeclaredConstructor().newInstance();
+                BeanUtils.copyProperties(source, vo);
+                voList.add(vo);
+            }
+            ExcelUtil<V> util = new ExcelUtil<>(voClass);
+            util.exportExcel(response, voList, sheetName, fileName);
+        } catch (Exception e) {
+            log.error("导出Excel失败，VO类：{}", voClass.getName(), e);
+            throw new RuntimeException("导出Excel失败", e);
+        }
     }
 }
