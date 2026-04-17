@@ -16,6 +16,10 @@
             <el-icon><Download /></el-icon>
             <span>文件下载</span>
           </el-menu-item>
+          <el-menu-item v-if="isLeaderOrAdmin" index="/validUsers">
+            <el-icon><UserFilled /></el-icon>
+            <span>有效用户下载</span>
+          </el-menu-item>
           <el-menu-item v-if="isAdmin" index="/logs">
             <el-icon><Document /></el-icon>
             <span>下载日志</span>
@@ -34,8 +38,8 @@
         <el-header class="app-header">
           <div class="header-info">
             <span>{{ currentUser.nickname || currentUser.username }}</span>
-            <el-tag size="small" :type="isAdmin ? 'danger' : 'info'" style="margin-left: 8px">
-              {{ isAdmin ? '管理员' : '用户' }}
+            <el-tag size="small" :type="isAdmin ? 'danger' : (currentUser.role === 'leader' ? 'warning' : 'info')" style="margin-left: 8px">
+              {{ isAdmin ? '管理员' : (currentUser.role === 'leader' ? '组长' : '用户') }}
             </el-tag>
           </div>
           <el-button size="small" @click="showChangePwd">
@@ -77,7 +81,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { SwitchButton, Download, Document, User, Lock, Tickets } from '@element-plus/icons-vue'
+import { SwitchButton, Download, Document, User, Lock, Tickets, UserFilled } from '@element-plus/icons-vue'
 import { getUserInfo, logout as apiLogout } from './api/auth'
 import { changePassword } from './api/user'
 
@@ -85,6 +89,7 @@ const router = useRouter()
 const route = useRoute()
 const currentUser = ref(null)
 const isAdmin = computed(() => currentUser.value && (currentUser.value.role === 'admin' || currentUser.value.role === 'superAdmin'))
+const isLeaderOrAdmin = computed(() => currentUser.value && (currentUser.value.role === 'leader' || currentUser.value.role === 'admin' || currentUser.value.role === 'superAdmin'))
 
 const checkAuth = async () => {
   const cached = sessionStorage.getItem('currentUser')

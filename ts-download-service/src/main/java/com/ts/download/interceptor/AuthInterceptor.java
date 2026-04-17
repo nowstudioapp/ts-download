@@ -2,8 +2,13 @@ package com.ts.download.interceptor;
 
 import com.alibaba.fastjson2.JSON;
 import com.ts.download.annotation.RequireAdmin;
+import com.ts.download.annotation.RequireLeader;
 import com.ts.download.domain.vo.R;
 import com.ts.download.domain.vo.UserVO;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -17,6 +22,9 @@ import java.io.IOException;
 public class AuthInterceptor implements HandlerInterceptor {
 
     public static final String SESSION_USER_KEY = "currentUser";
+
+    private static final Set<String> ADMIN_ROLES = new HashSet<>(Arrays.asList("admin", "superAdmin"));
+    private static final Set<String> LEADER_ROLES = new HashSet<>(Arrays.asList("leader", "admin", "superAdmin"));
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -35,8 +43,13 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (handler instanceof HandlerMethod) {
             HandlerMethod handlerMethod = (HandlerMethod) handler;
             RequireAdmin requireAdmin = handlerMethod.getMethodAnnotation(RequireAdmin.class);
-            if (requireAdmin != null && !"admin".equals(user.getRole()) && !"superAdmin".equals(user.getRole())) {
+            if (requireAdmin != null && !ADMIN_ROLES.contains(user.getRole())) {
                 writeForbidden(response, "权限不足，需要管理员权限");
+                return false;
+            }
+            RequireLeader requireLeader = handlerMethod.getMethodAnnotation(RequireLeader.class);
+            if (requireLeader != null && !LEADER_ROLES.contains(user.getRole())) {
+                writeForbidden(response, "权限不足，需要组长及以上权限");
                 return false;
             }
         }

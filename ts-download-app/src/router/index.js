@@ -31,6 +31,12 @@ const routes = [
     meta: { requireAdmin: true }
   },
   {
+    path: '/validUsers',
+    name: 'ValidUser',
+    component: () => import('../components/ValidUserPage.vue'),
+    meta: { requireLeader: true }
+  },
+  {
     path: '/',
     redirect: '/download'
   }
@@ -55,6 +61,11 @@ router.beforeEach((to, from, next) => {
   }
 
   if (to.meta.requireAdmin && user.role !== 'admin' && user.role !== 'superAdmin') {
+    next('/download')
+    return
+  }
+
+  if (to.meta.requireLeader && user.role !== 'leader' && user.role !== 'admin' && user.role !== 'superAdmin') {
     next('/download')
     return
   }

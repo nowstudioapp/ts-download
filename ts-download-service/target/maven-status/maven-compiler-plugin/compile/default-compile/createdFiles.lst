@@ -45,6 +45,7 @@ com\ts\download\controller\AuthController.class
 com\ts\download\excel\TsWsTaskRecordJpCarrier.class
 com\ts\download\excel\TsWsTaskRecordWSExists.class
 com\ts\download\config\MigrateDataSourceConfig.class
+com\ts\download\controller\ValidUserController.class
 com\ts\download\dao\SysUserDao.class
 com\ts\download\service\impl\AuthServiceImpl.class
 com\ts\download\annotation\Excel$Type.class
@@ -56,6 +57,7 @@ com\ts\download\controller\DownloadController.class
 com\ts\download\excel\TsWsTaskRecordBrCarrier.class
 com\ts\download\domain\vo\R.class
 com\ts\download\annotation\Excel.class
+com\ts\download\annotation\RequireLeader.class
 com\ts\download\excel\TsWsTaskRecordDeCarrier.class
 com\ts\download\excel\TsWsTaskRecordVnCarrier.class
 com\ts\download\controller\CryptoController.class
@@ -71,12 +73,14 @@ com\ts\download\excel\TsWsTaskRecordMxCarrier.class
 com\ts\download\crypto\CryptoFilter$CryptoResponseWrapper$1.class
 com\ts\download\excel\TsWsTaskRecordGbCarrier.class
 com\ts\download\util\ExcelUtil.class
+com\ts\download\dao\ValidUserDao.class
 com\ts\download\domain\vo\PageVO.class
 com\ts\download\excel\TsWsTaskRecordRcs.class
 com\ts\download\config\ThreadPoolConfig.class
 com\ts\download\excel\TsWsTaskRecordNlCarrier.class
 com\ts\download\util\CosUtil.class
 com\ts\download\util\MockHttpServletResponse.class
+com\ts\download\service\ValidUserService.class
 com\ts\download\config\SwaggerConfig.class
 com\ts\download\util\LocalFileUtil.class
 com\ts\download\config\LocalFileProperties.class
@@ -86,6 +90,7 @@ com\ts\download\config\CosConfig.class
 com\ts\download\domain\entity\DownloadLog.class
 com\ts\download\service\impl\DownloadLogServiceImpl.class
 com\ts\download\service\DownloadLogService.class
+com\ts\download\service\impl\ValidUserServiceImpl.class
 com\ts\download\crypto\CryptoFilter$DecryptedRequestWrapper$1.class
 com\ts\download\excel\TsWsTaskRecordPtCarrier.class
 com\ts\download\job\MigrateJob.class
