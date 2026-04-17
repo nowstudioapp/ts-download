@@ -1,24 +1,45 @@
-# Compiled class file
+# === IDE ===
+.idea/
+*.iml
+.vscode/
+
+# === Java ===
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
 *.ear
+hs_err_pid*
+replay_pid*
+
+# === Maven ===
+**/target/
+
+# === Logs ===
+*.log
+*.log.*
+*.gz
+**/logs/
+
+# === Node.js ===
+**/node_modules/
+**/dist/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# === Go temp files ===
+ts-download-exe/*.go.[0-9]*
+
+# === Package files ===
 *.zip
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+# === BlueJ / J2ME ===
+*.ctxt
+.mtj.tmp/
